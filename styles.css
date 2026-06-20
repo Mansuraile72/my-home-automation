@@ -1255,7 +1255,174 @@ body.system-locked .orb-3 { background: radial-gradient(circle, hsl(0, 70%, 38%)
 
 .pir-hint i { width: 12px; height: 12px; flex-shrink: 0; margin-top: 0.15rem; }
 
+/* ══ SENSOR CARD (DHT-11 Temperature & Humidity) ══ */
+
+/* Teal card icon — new accent not used elsewhere */
+:root {
+  --teal:      hsl(174, 80%, 50%);
+  --teal-dim:  hsla(174, 80%, 50%, 0.14);
+  --teal-glow: hsla(174, 80%, 50%, 0.35);
+  --shadow-glow-teal: 0 0 30px hsla(174, 80%, 50%, 0.2);
+}
+
+.card-icon--teal {
+  background: var(--teal-dim);
+  color: var(--teal);
+  box-shadow: var(--shadow-glow-teal);
+}
+
+/* Sensor card spans full grid width */
+.card-sensor {
+  grid-column: 1 / -1;
+}
+
+/* Gauge row */
+.sensor-gauges {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
+}
+
+/* Individual gauge cell */
+.sensor-gauge {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  background: hsla(222, 30%, 8%, 0.55);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  overflow: hidden;
+  transition: opacity var(--transition-slow), filter var(--transition-slow);
+}
+
+.sensor-gauge::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, hsla(255,255,255,0.03), transparent 60%);
+  pointer-events: none;
+}
+
+/* Small icon badge top-left */
+.sensor-gauge-icon {
+  width: 40px; height: 40px;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.sensor-gauge-icon i { width: 20px; height: 20px; }
+
+.sensor-gauge-icon--temp {
+  background: hsla(24, 100%, 58%, 0.15);
+  color: hsl(24, 100%, 65%);
+  box-shadow: 0 0 18px hsla(24, 100%, 58%, 0.2);
+}
+.sensor-gauge-icon--hum {
+  background: hsla(200, 100%, 60%, 0.15);
+  color: hsl(200, 100%, 65%);
+  box-shadow: 0 0 18px hsla(200, 100%, 60%, 0.2);
+}
+
+/* Text body */
+.sensor-gauge-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.sensor-gauge-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 0.15rem;
+}
+
+.sensor-gauge-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+  transition: color var(--transition);
+}
+
+.sensor-gauge-unit {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 0.1rem;
+}
+
+/* SVG arc ring — positioned top-right */
+.sensor-arc {
+  position: absolute;
+  right: var(--space-lg);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 80px; height: 80px;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+.sensor-arc-track {
+  fill: none;
+  stroke: hsla(222, 30%, 25%, 0.5);
+  stroke-width: 6;
+}
+
+.sensor-arc-fill {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+  /* rotate so arc starts at top-left (7 o'clock) and goes clockwise */
+  transform-origin: 40px 40px;
+  transform: rotate(-90deg);
+  transition: stroke-dasharray 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Temperature arc: orange → red as value rises */
+.sensor-arc-fill--temp { stroke: hsl(24, 100%, 60%); }
+
+/* Humidity arc: cyan-blue */
+.sensor-arc-fill--hum  { stroke: hsl(200, 100%, 62%); }
+
+/* ── Temperature colour tinting for extreme values ── */
+.sensor-gauge.temp-hot  .sensor-gauge-value { color: hsl(0,  85%, 65%); }
+.sensor-gauge.temp-warm .sensor-gauge-value { color: hsl(24, 100%, 65%); }
+.sensor-gauge.temp-cool .sensor-gauge-value { color: hsl(174, 80%, 55%); }
+.sensor-gauge.temp-cold .sensor-gauge-value { color: hsl(200, 100%, 65%); }
+
+/* ── Humidity colour tinting ── */
+.sensor-gauge.hum-high .sensor-gauge-value { color: hsl(200, 100%, 62%); }
+.sensor-gauge.hum-low  .sensor-gauge-value { color: hsl(38, 100%, 60%); }
+
+/* ── Offline / Kill-switch dim state ── */
+/* Applied to the card itself via JS; individual gauges also dim */
+.card-sensor.sensor-dim {
+  opacity: 0.45;
+  filter: grayscale(55%);
+  pointer-events: none;
+}
+
+.card-sensor.sensor-dim .sensor-gauge-value {
+  color: var(--text-muted);
+}
+
+/* Offline note strip */
+.card-sensor .info-strip {
+  margin-top: 0;
+}
+
 /* ══ RESPONSIVE ══ */
+
 @media (max-width: 768px) {
   .dashboard { padding: var(--space-md); gap: var(--space-md); }
   .header-inner { padding: 0.75rem var(--space-md); }

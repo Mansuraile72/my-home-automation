@@ -66,6 +66,68 @@
   <!-- ═══════════════ MAIN GRID ═══════════════ -->
   <main class="dashboard">
 
+    <!-- ─── SENSOR CARD (Temperature & Humidity — DHT-11) ─── -->
+    <section class="card card-sensor" id="sensorCard">
+      <div class="card-header">
+        <div class="card-icon card-icon--teal">
+          <i data-lucide="thermometer"></i>
+        </div>
+        <div>
+          <h2 class="card-title">Environment</h2>
+          <p class="card-sub">DHT-11 · Live sensor feed</p>
+        </div>
+        <div class="card-badge" id="sensorStatusBadge">Live</div>
+      </div>
+
+      <!-- Dual readout gauges -->
+      <div class="sensor-gauges">
+
+        <!-- Temperature -->
+        <div class="sensor-gauge" id="tempGauge">
+          <div class="sensor-gauge-icon sensor-gauge-icon--temp">
+            <i data-lucide="thermometer"></i>
+          </div>
+          <div class="sensor-gauge-body">
+            <span class="sensor-gauge-label">Temperature</span>
+            <span class="sensor-gauge-value" id="tempValue">--.-</span>
+            <span class="sensor-gauge-unit">°C</span>
+          </div>
+          <!-- Arc ring fills based on temp (0–50 °C) via inline style in app.js -->
+          <svg class="sensor-arc" viewBox="0 0 80 80" aria-hidden="true">
+            <circle class="sensor-arc-track" cx="40" cy="40" r="32"/>
+            <circle class="sensor-arc-fill sensor-arc-fill--temp" id="tempArc"
+                    cx="40" cy="40" r="32"
+                    stroke-dasharray="0 201" stroke-dashoffset="50"/>
+          </svg>
+        </div>
+
+        <!-- Humidity -->
+        <div class="sensor-gauge" id="humGauge">
+          <div class="sensor-gauge-icon sensor-gauge-icon--hum">
+            <i data-lucide="droplets"></i>
+          </div>
+          <div class="sensor-gauge-body">
+            <span class="sensor-gauge-label">Humidity</span>
+            <span class="sensor-gauge-value" id="humValue">--.-</span>
+            <span class="sensor-gauge-unit">%</span>
+          </div>
+          <svg class="sensor-arc" viewBox="0 0 80 80" aria-hidden="true">
+            <circle class="sensor-arc-track" cx="40" cy="40" r="32"/>
+            <circle class="sensor-arc-fill sensor-arc-fill--hum" id="humArc"
+                    cx="40" cy="40" r="32"
+                    stroke-dasharray="0 201" stroke-dashoffset="50"/>
+          </svg>
+        </div>
+
+      </div><!-- /sensor-gauges -->
+
+      <!-- Offline / stale data notice (hidden when live) -->
+      <div id="sensorOfflineNote" class="info-strip hidden">
+        <i data-lucide="wifi-off"></i>
+        <span>Sensor data unavailable — device is offline.</span>
+      </div>
+    </section>
+
     <!-- ─── BATTERY CARD ─── -->
     <section class="card card-battery" id="batteryCard">
       <div class="card-header">

@@ -38,6 +38,7 @@ const PATH_STATE    = '/device/state';
 const PATH_COMMANDS = '/device/commands';
 const PATH_PIR      = '/Settings/PIR_Timeout_Minutes';
 const PATH_KILL     = '/System_Status/Master_Block';  // ← Kill switch path
+const PATH_SENSOR   = '/Sensor_Data';                 // ← DHT-11 temperature & humidity
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  FIREBASE INIT — No signIn() call needed with Test Mode rules
@@ -66,6 +67,9 @@ let state = {
   ntpSynced:               false,
   currentTime:             '--:--:--',
   pirHoldMinutes:          PIR_DEFAULT_MIN,
+  // DHT-11
+  temperature:             null,
+  humidity:                null,
 };
 
 let lastDataReceivedAt = null;
@@ -144,8 +148,19 @@ const DOM = {
   // Misc
   toastContainer:    $('toastContainer'),
   cmdSpinner:        $('cmdSpinner'),
-  killSwitchOverlay: $('killSwitchOverlay'),   // ← Kill switch overlay
-  killTimestamp:     $('killTimestamp'),        // ← Blocked-at timestamp
+  killSwitchOverlay: $('killSwitchOverlay'),
+  killTimestamp:     $('killTimestamp'),
+
+  // Sensor card
+  sensorCard:         $('sensorCard'),
+  sensorStatusBadge:  $('sensorStatusBadge'),
+  sensorOfflineNote:  $('sensorOfflineNote'),
+  tempValue:          $('tempValue'),
+  humValue:           $('humValue'),
+  tempArc:            $('tempArc'),
+  humArc:             $('humArc'),
+  tempGauge:          $('tempGauge'),
+  humGauge:           $('humGauge'),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -281,6 +296,27 @@ db.ref(PATH_PIR).on('value', (snapshot) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  FIREBASE LISTENER — DHT-11 Sensor Data
+//  /Sensor_Data is a separate path written only by the NodeMCU.
+//  Independent of the heartbeat path so it updates on its own 10 s cadence.
+// ─────────────────────────────────────────────────────────────────────────────
+
+db.ref(PATH_SENSOR).on('value', (snapshot) => {
+  const data = snapshot.val();
+  if (!data) return;
+
+  const t = (data.Temperature != null) ? parseFloat(data.Temperature) : null;
+  const h = (data.Humidity    != null) ? parseFloat(data.Humidity)    : null;
+
+  if (t !== null) state.temperature = t;
+  if (h !== null) state.humidity    = h;
+
+  renderSensors();
+}, (err) => {
+  console.error('[Sensor] Listener error:', err);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  FIREBASE LISTENER — Master Kill Switch
 //  Watches /System_Status/Master_Block in real-time.
 //  A change from the PHP server propagates here within ~1 second.
@@ -335,6 +371,9 @@ function activateKillSwitch() {
 
   showToast('⚠️ System blocked by external signal!', 'error', 'shield-off', 0);
   console.warn('[KillSwitch] ███ SYSTEM LOCKED ███');
+
+  // Dim the sensor card immediately (renderAll isn't called on lock, only on unlock)
+  renderSensors();
 }
 
 /**
@@ -444,11 +483,82 @@ async function sendCommand(cmd) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function renderAll() {
+  renderSensors();
   renderBattery();
   renderFan();
   renderOutsideLight();
   renderInsideLight();
   renderSystem();
+}
+
+/**
+ * Animates the SVG arc ring to represent a fraction 0..1 of the full circle.
+ * The full circumference of r=32 is 2π×32 ≈ 201.06.
+ */
+function setSensorArc(arcEl, fraction) {
+  const circ = 201.06;
+  const filled = Math.max(0, Math.min(1, fraction)) * circ;
+  arcEl.setAttribute('stroke-dasharray', `${filled.toFixed(1)} ${circ}`);
+}
+
+/**
+ * Renders the DHT-11 sensor card with live temperature and humidity.
+ * Also handles the offline / kill-switch dim state.
+ */
+function renderSensors() {
+  const offline   = !state.isOnline;
+  const locked    = isKillSwitchActive;
+  const dimmed    = offline || locked;
+
+  // Dim / undim the whole card
+  DOM.sensorCard.classList.toggle('sensor-dim', dimmed);
+
+  // Show / hide the offline note strip
+  toggleEl(DOM.sensorOfflineNote, dimmed);
+
+  // Update status badge
+  DOM.sensorStatusBadge.textContent = dimmed ? (locked ? '🔒 Locked' : 'Offline') : 'Live';
+  DOM.sensorStatusBadge.style.color = dimmed ? 'var(--red)' : '';
+  DOM.sensorStatusBadge.style.background = dimmed ? 'var(--red-dim)' : '';
+
+  const t = state.temperature;
+  const h = state.humidity;
+
+  // ── Temperature ───────────────────────────────────────────────────────────
+  if (t !== null && !dimmed) {
+    DOM.tempValue.textContent = t.toFixed(1);
+
+    // Arc: map 0–50 °C to 0..1
+    setSensorArc(DOM.tempArc, t / 50);
+
+    // Colour class
+    DOM.tempGauge.classList.remove('temp-hot', 'temp-warm', 'temp-cool', 'temp-cold');
+    if      (t >= 35) DOM.tempGauge.classList.add('temp-hot');
+    else if (t >= 28) DOM.tempGauge.classList.add('temp-warm');
+    else if (t >= 20) DOM.tempGauge.classList.add('temp-cool');
+    else              DOM.tempGauge.classList.add('temp-cold');
+  } else {
+    DOM.tempValue.textContent = 'N/A';
+    setSensorArc(DOM.tempArc, 0);
+    DOM.tempGauge.classList.remove('temp-hot', 'temp-warm', 'temp-cool', 'temp-cold');
+  }
+
+  // ── Humidity ────────────────────────────────────────────────────────────
+  if (h !== null && !dimmed) {
+    DOM.humValue.textContent = h.toFixed(1);
+
+    // Arc: map 0–100% humidity to 0..1
+    setSensorArc(DOM.humArc, h / 100);
+
+    // Colour class
+    DOM.humGauge.classList.remove('hum-high', 'hum-low');
+    if      (h >= 70) DOM.humGauge.classList.add('hum-high');
+    else if (h <  30) DOM.humGauge.classList.add('hum-low');
+  } else {
+    DOM.humValue.textContent = 'N/A';
+    setSensorArc(DOM.humArc, 0);
+    DOM.humGauge.classList.remove('hum-high', 'hum-low');
+  }
 }
 
 // ── Online / Offline ──────────────────────────────────────────────────────────
