@@ -183,8 +183,22 @@ db.ref(PATH_STATE).on('value', (snapshot) => {
     DOM.sysPirTimeout.textContent = data.pirHoldMinutes + ' min';
   }
 
-  lastDataReceivedAt = new Date();
-  state.isOnline     = true;
+  // Normalise the device timestamp from SECONDS (NodeMCU/NTPClient) to
+  // MILLISECONDS (JS) before storing it.  The threshold test:
+  //   < 1_000_000_000_000  →  value is in seconds  (10-digit epoch)
+  //   ≥ 1_000_000_000_000  →  value is already in ms (13-digit)
+  // This single normalisation point is the source of truth for all offline
+  // detection; no other code needs to know about the unit difference.
+  if (data.timestamp) {
+    const tsMs = data.timestamp < 1_000_000_000_000
+      ? data.timestamp * 1000   // seconds → milliseconds ✓
+      : data.timestamp;         // already milliseconds
+    lastDataReceivedAt = new Date(tsMs);
+  } else {
+    // NTP not yet synced on device — fall back to browser wall-clock
+    lastDataReceivedAt = new Date();
+  }
+  state.isOnline = true;
 
   renderAll();
 }, (error) => {
@@ -539,7 +553,21 @@ function renderSystem() {
 
 function checkOnlineStatus() {
   if (!lastDataReceivedAt) return;
-  const secondsSince = (Date.now() - lastDataReceivedAt.getTime()) / 1000;
+
+  // lastDataReceivedAt is always stored in ms (normalised in the Firebase
+  // listener above), so Date.now() − getTime() is always a ms delta.
+  const msSince     = Date.now() - lastDataReceivedAt.getTime();
+  const secondsSince = msSince / 1000;
+
+  // Defensive guard: if secondsSince is negative (clock skew) or absurdly
+  // large (> 1 year in seconds), the unit normalisation above was bypassed
+  // somehow — treat the device as online and log a warning.
+  if (secondsSince < 0 || secondsSince > 31_536_000) {
+    console.warn('[Offline] Suspicious secondsSince:', secondsSince,
+      '— possible timestamp unit mismatch. Treating as online.');
+    renderOnlineStatus(true, 0);
+    return;
+  }
 
   if (secondsSince > OFFLINE_THRESHOLD_SEC) {
     if (state.isOnline) {
