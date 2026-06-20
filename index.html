@@ -39,10 +39,13 @@
       </div>
 
       <div class="header-status">
-        <!-- Online / Offline Badge -->
-        <div id="statusBadge" class="status-badge status-connecting">
+        <!-- Online / Offline Badge --
+             Default to 'offline' so the page never briefly flashes 'Online'
+             when loaded while the device is powered OFF. app.js will upgrade
+             it to 'Online' only after timestamp validation passes. -->
+        <div id="statusBadge" class="status-badge status-offline">
           <span class="status-dot"></span>
-          <span id="statusText">Connecting…</span>
+          <span id="statusText">Checking…</span>
         </div>
 
         <!-- Device Clock -->

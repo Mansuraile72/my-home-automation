@@ -183,23 +183,43 @@ db.ref(PATH_STATE).on('value', (snapshot) => {
     DOM.sysPirTimeout.textContent = data.pirHoldMinutes + ' min';
   }
 
-  // Normalise the device timestamp from SECONDS (NodeMCU/NTPClient) to
-  // MILLISECONDS (JS) before storing it.  The threshold test:
-  //   < 1_000_000_000_000  →  value is in seconds  (10-digit epoch)
-  //   ≥ 1_000_000_000_000  →  value is already in ms (13-digit)
-  // This single normalisation point is the source of truth for all offline
-  // detection; no other code needs to know about the unit difference.
+  // ── Normalise timestamp: NodeMCU sends seconds; JS needs milliseconds ──────
+  let tsMs = null;
   if (data.timestamp) {
-    const tsMs = data.timestamp < 1_000_000_000_000
-      ? data.timestamp * 1000   // seconds → milliseconds ✓
-      : data.timestamp;         // already milliseconds
+    tsMs = data.timestamp < 1_000_000_000_000
+      ? data.timestamp * 1000   // seconds → ms
+      : data.timestamp;         // already ms
     lastDataReceivedAt = new Date(tsMs);
   } else {
-    // NTP not yet synced on device — fall back to browser wall-clock
-    lastDataReceivedAt = new Date();
+    lastDataReceivedAt = new Date(); // NTP not synced yet — use browser clock
+    tsMs = lastDataReceivedAt.getTime();
   }
-  state.isOnline = true;
 
+  // ── IMMEDIATE staleness validation ──────────────────────────────────────────
+  // Do NOT wait for the setInterval tick. Check right now, on the very first
+  // Firebase payload, whether the stored timestamp is already stale.
+  // This prevents the UI ever briefly showing 'Online' when the device is OFF.
+  const ageMs  = Date.now() - tsMs;
+  const ageSec = ageMs / 1000;
+
+  if (ageSec > OFFLINE_THRESHOLD_SEC) {
+    // Data in Firebase is older than our threshold — device is offline.
+    state.isOnline = false;
+    renderOnlineStatus(false, ageSec);
+    // Still render battery/fan/light cards so the user sees the last known
+    // state, but buttons will be disabled by renderOnlineStatus().
+    renderBattery();
+    renderFan();
+    renderOutsideLight();
+    renderInsideLight();
+    renderSystem();
+    console.warn('[Online] Stale timestamp detected on load — device is OFFLINE.',
+      'Age:', ageSec.toFixed(1), 's');
+    return;
+  }
+
+  // Timestamp is fresh — device is genuinely online.
+  state.isOnline = true;
   renderAll();
 }, (error) => {
   console.error('[Firebase] state listener error:', error);
@@ -405,21 +425,41 @@ function renderAll() {
 
 function renderOnlineStatus(online, secondsSince) {
   if (online) {
-    DOM.statusBadge.className    = 'status-badge status-online';
-    DOM.statusText.textContent   = 'Online';
+    DOM.statusBadge.className     = 'status-badge status-online';
+    DOM.statusText.textContent    = 'Online';
     DOM.offlineBanner.classList.add('hidden');
-    DOM.deviceClock.textContent  = state.currentTime;
+    DOM.deviceClock.textContent   = state.currentTime;
     DOM.sysConnection.textContent = 'Online';
-    DOM.sysConnection.className  = 'sys-value good';
+    DOM.sysConnection.className   = 'sys-value good';
+
+    // Re-enable all relay buttons when back online.
+    // renderFan() will re-apply BMS hysteresis locks on top of this.
+    if (!isKillSwitchActive) {
+      document.querySelectorAll('.btn').forEach(btn => {
+        // Only re-enable buttons that aren't already locked by the kill switch
+        if (!btn.dataset.killedDisabled) btn.disabled = false;
+      });
+      DOM.pirSlider.disabled = false;
+    }
   } else {
-    DOM.statusBadge.className    = 'status-badge status-offline';
-    DOM.statusText.textContent   = 'Offline';
+    DOM.statusBadge.className     = 'status-badge status-offline';
+    DOM.statusText.textContent    = 'Offline';
     DOM.offlineBanner.classList.remove('hidden');
     const ago = formatDuration(secondsSince);
     DOM.offlineBannerText.textContent =
       `Device offline — Last Data Received: ${ago} ago`;
     DOM.sysConnection.textContent = `Offline (${ago} ago)`;
-    DOM.sysConnection.className  = 'sys-value bad';
+    DOM.sysConnection.className   = 'sys-value bad';
+
+    // Disable ALL relay/control buttons while offline so the user cannot
+    // queue commands to a dead device. Kill switch overlay takes precedence
+    // when active, so we only disable if not already kill-switched.
+    if (!isKillSwitchActive) {
+      document.querySelectorAll('.btn').forEach(btn => {
+        btn.disabled = true;
+      });
+      DOM.pirSlider.disabled = true;
+    }
   }
 
   if (lastDataReceivedAt) {
