@@ -183,38 +183,79 @@ db.ref(PATH_STATE).on('value', (snapshot) => {
     DOM.sysPirTimeout.textContent = data.pirHoldMinutes + ' min';
   }
 
-  // ── Normalise timestamp: NodeMCU sends seconds; JS needs milliseconds ──────
+  // ════════════════════════════════════════════════════════════════════════════
+  //  TIMESTAMP NORMALISATION + IMMEDIATE STALENESS CHECK
+  //
+  //  ROOT CAUSE OF BOTH BUGS:
+  //  The NodeMCU NTPClient uses NTP_OFFSET_SEC = 19800 (IST = UTC+5:30).
+  //  This means data.timestamp is an IST epoch, not a UTC epoch.
+  //  JavaScript's Date.now() is always UTC milliseconds.
+  //
+  //  Without correction:
+  //    deviceEpoch_IST  ≈ 1750019800   (UTC epoch + 19800)
+  //    Date.now()/1000  ≈ 1750000000   (UTC)
+  //    ageSec           = 1750000000 - 1750019800 = -19800  (NEGATIVE)
+  //
+  //  The negative value then hit the defensive guard which forced
+  //  state.isOnline = true  →  "Online flash" bug.
+  //
+  //  After 19800 real seconds (~5.5 h), ageSec crosses zero and immediately
+  //  exceeds OFFLINE_THRESHOLD_SEC, so the banner shows "30 seconds ago"
+  //  instead of the true elapsed time  →  "30-second bug".
+  //
+  //  FIX: subtract the IST offset (19800 s) from the device epoch before
+  //  converting to ms.  This gives a UTC epoch that is directly comparable
+  //  to Date.now().
+  // ════════════════════════════════════════════════════════════════════════════
+
+  const NTP_OFFSET_SEC = 19800; // must match firmware: NTP_OFFSET_SEC (UTC+5:30)
   let tsMs = null;
+
   if (data.timestamp) {
-    tsMs = data.timestamp < 1_000_000_000_000
-      ? data.timestamp * 1000   // seconds → ms
-      : data.timestamp;         // already ms
+    // Step 1 — convert to seconds if already in ms (safety guard)
+    const rawSec = data.timestamp < 1_000_000_000_000
+      ? data.timestamp              // already seconds (10-digit)
+      : Math.floor(data.timestamp / 1000); // was ms — back to seconds
+
+    // Step 2 — strip the IST offset to get a pure UTC epoch
+    const utcSec = rawSec - NTP_OFFSET_SEC;
+
+    // Step 3 — convert to ms for JS Date
+    tsMs = utcSec * 1000;
     lastDataReceivedAt = new Date(tsMs);
   } else {
-    lastDataReceivedAt = new Date(); // NTP not synced yet — use browser clock
+    // NTP not yet synced on device — use browser wall-clock as fallback
+    lastDataReceivedAt = new Date();
     tsMs = lastDataReceivedAt.getTime();
   }
 
-  // ── IMMEDIATE staleness validation ──────────────────────────────────────────
-  // Do NOT wait for the setInterval tick. Check right now, on the very first
-  // Firebase payload, whether the stored timestamp is already stale.
-  // This prevents the UI ever briefly showing 'Online' when the device is OFF.
+  // ── Diagnostics (open DevTools Console to see these) ─────────────────────
   const ageMs  = Date.now() - tsMs;
   const ageSec = ageMs / 1000;
+  console.log(
+    '[Timestamp] raw device ts:', data.timestamp,
+    '| utcMs:', tsMs,
+    '| Date.now():', Date.now(),
+    '| ageMs:', ageMs.toFixed(0),
+    '| ageSec:', ageSec.toFixed(1),
+    '| threshold:', OFFLINE_THRESHOLD_SEC
+  );
 
-  if (ageSec > OFFLINE_THRESHOLD_SEC) {
-    // Data in Firebase is older than our threshold — device is offline.
+  // ── Immediate staleness decision ──────────────────────────────────────────
+  // ageSec < 0 is now only possible if the device clock is ahead of the
+  // server (extreme NTP drift).  Clamp to 0 rather than treating as online.
+  const clampedAge = Math.max(0, ageSec);
+
+  if (clampedAge > OFFLINE_THRESHOLD_SEC) {
     state.isOnline = false;
-    renderOnlineStatus(false, ageSec);
-    // Still render battery/fan/light cards so the user sees the last known
-    // state, but buttons will be disabled by renderOnlineStatus().
+    renderOnlineStatus(false, clampedAge);
+    // Render cards so the user sees last known values (buttons stay disabled)
     renderBattery();
     renderFan();
     renderOutsideLight();
     renderInsideLight();
     renderSystem();
-    console.warn('[Online] Stale timestamp detected on load — device is OFFLINE.',
-      'Age:', ageSec.toFixed(1), 's');
+    console.warn('[Online] Device is OFFLINE. Stale by', clampedAge.toFixed(1), 's');
     return;
   }
 
@@ -517,8 +558,13 @@ function renderFan() {
     DOM.fanStatusText.textContent = 'Fan is OFF';
   }
 
-  DOM.btnFanToggle.disabled    = locked;
-  DOM.btnFanEmergency.disabled = (state.batteryPct < 15);
+  // Only apply BMS-level enable/disable when the device is online.
+  // While offline, renderOnlineStatus() already disabled all buttons;
+  // overwriting disabled=false here would re-enable them erroneously.
+  if (state.isOnline && !isKillSwitchActive) {
+    DOM.btnFanToggle.disabled    = locked;
+    DOM.btnFanEmergency.disabled = (state.batteryPct < 15);
+  }
   toggleEl(DOM.fanLockInfo, locked);
 
   DOM.emergencyBtnText.textContent = emerg ? 'Cancel Emergency' : 'Emergency 10 Min';
@@ -594,29 +640,24 @@ function renderSystem() {
 function checkOnlineStatus() {
   if (!lastDataReceivedAt) return;
 
-  // lastDataReceivedAt is always stored in ms (normalised in the Firebase
-  // listener above), so Date.now() − getTime() is always a ms delta.
-  const msSince     = Date.now() - lastDataReceivedAt.getTime();
+  const msSince    = Date.now() - lastDataReceivedAt.getTime();
   const secondsSince = msSince / 1000;
 
-  // Defensive guard: if secondsSince is negative (clock skew) or absurdly
-  // large (> 1 year in seconds), the unit normalisation above was bypassed
-  // somehow — treat the device as online and log a warning.
-  if (secondsSince < 0 || secondsSince > 31_536_000) {
-    console.warn('[Offline] Suspicious secondsSince:', secondsSince,
-      '— possible timestamp unit mismatch. Treating as online.');
-    renderOnlineStatus(true, 0);
-    return;
-  }
+  // With the IST offset now stripped at ingestion time (in the Firebase
+  // listener), secondsSince should never be wildly negative.  A small
+  // negative value (< -60 s) is real clock skew — clamp to 0 and
+  // treat as fresh rather than forcing an incorrect online/offline state.
+  const clamped = Math.max(0, secondsSince);
 
-  if (secondsSince > OFFLINE_THRESHOLD_SEC) {
+  if (clamped > OFFLINE_THRESHOLD_SEC) {
     if (state.isOnline) {
       state.isOnline = false;
       showToast('Device went offline', 'warning', 'wifi-off');
     }
-    renderOnlineStatus(false, secondsSince);
+    renderOnlineStatus(false, clamped);
   } else {
-    renderOnlineStatus(true, secondsSince);
+    if (!state.isOnline) state.isOnline = true;
+    renderOnlineStatus(true, clamped);
   }
 }
 
