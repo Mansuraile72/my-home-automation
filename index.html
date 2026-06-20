@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>माय होम ऑटोमेशन टेस्ट</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f4f4f9;
+            padding: 50px;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            display: inline-block;
+        }
+        h1 { color: #333; }
+        .status {
+            font-size: 20px;
+            color: #27ae60;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        .btn {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .btn:hover { background-color: #2980b9; }
+    </style>
+
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <h1>होम ऑटोमेशन कंट्रोल पैनल</h1>
+    
+    <div id="esp-status" class="status">लोड हो रहा है...</div>
+    
+    <button class="btn" onclick="toggleLED()">कमांड भेजें (Toggle LED)</button>
+</div>
+
+<script>
+    // आपकी फायरबेस कॉन्फ़िगरेशन डिटेल्स
+    const firebaseConfig = {
+        apiKey: "AIzaSyAnp0VTMBMME0WtJGHnuVLquIPeMjEfOcE",
+        authDomain: "myhomeauto-9122d.firebaseapp.com",
+        projectId: "myhomeauto-9122d",
+        storageBucket: "myhomeauto-9122d.firebasestorage.app",
+        messagingSenderId: "1016354780802",
+        appId: "1:1016354780802:web:69d57ba3958c5efe7ce69b",
+        databaseURL: "https://myhomeauto-9122d-default-rtdb.firebaseio.com/"
+    };
+
+    // Firebase को शुरू करना
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    // 1. फायरबेस से NodeMCU का स्टेटस पढ़ना (Live Read)
+    database.ref('/Connection_Status').on('value', (snapshot) => {
+        const statusText = snapshot.val();
+        document.getElementById('esp-status').innerText = "बोर्ड स्टेटस: " + statusText;
+    });
+
+    // 2. वेबसाइट से फायरबेस में डेटा भेजना (Write)
+    let ledState = false;
+    function toggleLED() {
+        ledState = !ledState;
+        database.ref('/').update({
+            'LED_Status': ledState ? "ON" : "OFF"
+        });
+        alert("कमांड फायरबेस पर भेज दी गई है! LED_Status अब " + (ledState ? "ON" : "OFF") + " है।");
+    }
+</script>
+
+</body>
+</html>
