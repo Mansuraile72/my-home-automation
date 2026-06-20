@@ -185,81 +185,70 @@ db.ref(PATH_STATE).on('value', (snapshot) => {
 
   // ════════════════════════════════════════════════════════════════════════════
   //  TIMESTAMP NORMALISATION + IMMEDIATE STALENESS CHECK
-  //
-  //  ROOT CAUSE OF BOTH BUGS:
-  //  The NodeMCU NTPClient uses NTP_OFFSET_SEC = 19800 (IST = UTC+5:30).
-  //  This means data.timestamp is an IST epoch, not a UTC epoch.
-  //  JavaScript's Date.now() is always UTC milliseconds.
-  //
-  //  Without correction:
-  //    deviceEpoch_IST  ≈ 1750019800   (UTC epoch + 19800)
-  //    Date.now()/1000  ≈ 1750000000   (UTC)
-  //    ageSec           = 1750000000 - 1750019800 = -19800  (NEGATIVE)
-  //
-  //  The negative value then hit the defensive guard which forced
-  //  state.isOnline = true  →  "Online flash" bug.
-  //
-  //  After 19800 real seconds (~5.5 h), ageSec crosses zero and immediately
-  //  exceeds OFFLINE_THRESHOLD_SEC, so the banner shows "30 seconds ago"
-  //  instead of the true elapsed time  →  "30-second bug".
-  //
-  //  FIX: subtract the IST offset (19800 s) from the device epoch before
-  //  converting to ms.  This gives a UTC epoch that is directly comparable
-  //  to Date.now().
   // ════════════════════════════════════════════════════════════════════════════
 
-  const NTP_OFFSET_SEC = 19800; // must match firmware: NTP_OFFSET_SEC (UTC+5:30)
-  let tsMs = null;
+  const NTP_OFFSET_SEC = 19800; // must match firmware NTP_OFFSET_SEC (UTC+5:30)
+  const rawDeviceTs    = data.timestamp ?? 0;
 
-  if (data.timestamp) {
-    // Step 1 — convert to seconds if already in ms (safety guard)
-    const rawSec = data.timestamp < 1_000_000_000_000
-      ? data.timestamp              // already seconds (10-digit)
-      : Math.floor(data.timestamp / 1000); // was ms — back to seconds
-
-    // Step 2 — strip the IST offset to get a pure UTC epoch
-    const utcSec = rawSec - NTP_OFFSET_SEC;
-
-    // Step 3 — convert to ms for JS Date
-    tsMs = utcSec * 1000;
-    lastDataReceivedAt = new Date(tsMs);
-  } else {
-    // NTP not yet synced on device — use browser wall-clock as fallback
-    lastDataReceivedAt = new Date();
-    tsMs = lastDataReceivedAt.getTime();
-  }
-
-  // ── Diagnostics (open DevTools Console to see these) ─────────────────────
-  const ageMs  = Date.now() - tsMs;
-  const ageSec = ageMs / 1000;
-  console.log(
-    '[Timestamp] raw device ts:', data.timestamp,
-    '| utcMs:', tsMs,
-    '| Date.now():', Date.now(),
-    '| ageMs:', ageMs.toFixed(0),
-    '| ageSec:', ageSec.toFixed(1),
-    '| threshold:', OFFLINE_THRESHOLD_SEC
-  );
-
-  // ── Immediate staleness decision ──────────────────────────────────────────
-  // ageSec < 0 is now only possible if the device clock is ahead of the
-  // server (extreme NTP drift).  Clamp to 0 rather than treating as online.
-  const clampedAge = Math.max(0, ageSec);
-
-  if (clampedAge > OFFLINE_THRESHOLD_SEC) {
+  // ── GUARD 1: Invalid / zero timestamp ──────────────────────────────────────
+  // A timestamp of 0 means the NodeMCU has not yet acquired an NTP lock and
+  // wrote its initial payload before the clock was valid.  0 evaluates to
+  // ageSec ≈0 which is below the threshold and would falsely show "Online".
+  // Treat any ts ≤ 0 or implausibly small value as "device not ready".
+  if (rawDeviceTs <= 0) {
     state.isOnline = false;
-    renderOnlineStatus(false, clampedAge);
-    // Render cards so the user sees last known values (buttons stay disabled)
+    renderOnlineStatus(false, Infinity); // Infinity → formatDuration shows correct msg
     renderBattery();
     renderFan();
     renderOutsideLight();
     renderInsideLight();
     renderSystem();
-    console.warn('[Online] Device is OFFLINE. Stale by', clampedAge.toFixed(1), 's');
+    console.warn('[Timestamp] rawDeviceTs is 0 or missing — NTP not yet synced on device.',
+      'Treating as OFFLINE.');
     return;
   }
 
-  // Timestamp is fresh — device is genuinely online.
+  // ── GUARD 2: Normalise seconds → ms ──────────────────────────────────────
+  // NodeMCU sends seconds (10-digit).  JS Date.now() is ms (13-digit).
+  const rawSec = rawDeviceTs < 1_000_000_000_000
+    ? rawDeviceTs
+    : Math.floor(rawDeviceTs / 1000);
+
+  // ── GUARD 3: Strip IST offset ────────────────────────────────────────────
+  // NTPClient with NTP_OFFSET_SEC=19800 returns an IST epoch, not UTC.
+  // JS Date.now() is always UTC. Subtracting the offset aligns the bases.
+  const utcSec = rawSec - NTP_OFFSET_SEC;
+  const tsMs   = utcSec * 1000;
+  lastDataReceivedAt = new Date(tsMs);
+
+  // ── Diagnostics ──────────────────────────────────────────────────────────
+  const ageMs  = Date.now() - tsMs;
+  const ageSec = ageMs / 1000;
+  console.log(
+    '[Timestamp] raw:', rawDeviceTs,
+    '| utcMs:', tsMs,
+    '| now:', Date.now(),
+    '| ageSec:', ageSec.toFixed(1)
+  );
+
+  // ── Staleness decision ──────────────────────────────────────────────────
+  // Clamp to 0: tiny negative values can occur if device clock is slightly
+  // ahead of the browser (normal NTP jitter — not a bug).
+  const clampedAge = Math.max(0, ageSec);
+
+  if (clampedAge > OFFLINE_THRESHOLD_SEC) {
+    state.isOnline = false;
+    renderOnlineStatus(false, clampedAge);
+    renderBattery();
+    renderFan();
+    renderOutsideLight();
+    renderInsideLight();
+    renderSystem();
+    console.warn('[Online] Device OFFLINE. Stale by', clampedAge.toFixed(1), 's');
+    return;
+  }
+
+  // Timestamp is valid and fresh — device is genuinely online.
   state.isOnline = true;
   renderAll();
 }, (error) => {
@@ -734,9 +723,11 @@ function formatMsToMMSS(ms) {
 }
 
 /**
- * Format seconds into a human-readable "X minutes ago" string.
+ * Format seconds into a human-readable "X ago" string.
+ * Handles Infinity and NaN (produced when timestamp is 0 / NTP not synced).
  */
 function formatDuration(seconds) {
+  if (!isFinite(seconds) || isNaN(seconds)) return 'unknown (device not ready)';
   if (seconds < 5)    return 'just now';
   if (seconds < 60)   return `${Math.floor(seconds)} seconds`;
   const m = Math.floor(seconds / 60);
