@@ -1,87 +1,410 @@
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>माय होम ऑटोमेशन टेस्ट</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background-color: #f4f4f9;
-            padding: 50px;
-        }
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            display: inline-block;
-        }
-        h1 { color: #333; }
-        .status {
-            font-size: 20px;
-            color: #27ae60;
-            font-weight: bold;
-            margin: 20px 0;
-        }
-        .btn {
-            background-color: #3498db;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        .btn:hover { background-color: #2980b9; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Smart Home Automation Dashboard — Real-time control via Firebase & NodeMCU ESP8266" />
+  <title>Home Automation — Smart Dashboard</title>
 
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 
-<div class="container">
-    <h1>होम ऑटोमेशन कंट्रोल पैनल</h1>
-    
-    <div id="esp-status" class="status">लोड हो रहा है...</div>
-    
-    <button class="btn" onclick="toggleLED()">कमांड भेजें (Toggle LED)</button>
-</div>
+  <!-- ═══════════════ AMBIENT BACKGROUND ═══════════════ -->
+  <div class="ambient-bg">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
 
-<script>
-    // आपकी फायरबेस कॉन्फ़िगरेशन डिटेल्स
-    const firebaseConfig = {
-        apiKey: "AIzaSyAnp0VTMBMME0WtJGHnuVLquIPeMjEfOcE",
-        authDomain: "myhomeauto-9122d.firebaseapp.com",
-        projectId: "myhomeauto-9122d",
-        storageBucket: "myhomeauto-9122d.firebasestorage.app",
-        messagingSenderId: "1016354780802",
-        appId: "1:1016354780802:web:69d57ba3958c5efe7ce69b",
-        databaseURL: "https://myhomeauto-9122d-default-rtdb.firebaseio.com/"
-    };
+  <!-- ═══════════════ HEADER ═══════════════ -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-icon">
+          <i data-lucide="home"></i>
+        </div>
+        <div class="brand-text">
+          <span class="brand-title">Home Automation</span>
+          <span class="brand-sub">Smart Control Dashboard</span>
+        </div>
+      </div>
 
-    // Firebase को शुरू करना
-    firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
+      <div class="header-status">
+        <!-- Online / Offline Badge -->
+        <div id="statusBadge" class="status-badge status-connecting">
+          <span class="status-dot"></span>
+          <span id="statusText">Connecting…</span>
+        </div>
 
-    // 1. फायरबेस से NodeMCU का स्टेटस पढ़ना (Live Read)
-    database.ref('/Connection_Status').on('value', (snapshot) => {
-        const statusText = snapshot.val();
-        document.getElementById('esp-status').innerText = "बोर्ड स्टेटस: " + statusText;
-    });
+        <!-- Device Clock -->
+        <div class="device-clock" id="deviceClockWrap">
+          <i data-lucide="clock"></i>
+          <span id="deviceClock">--:--:--</span>
+        </div>
+      </div>
+    </div>
 
-    // 2. वेबसाइट से फायरबेस में डेटा भेजना (Write)
-    let ledState = false;
-    function toggleLED() {
-        ledState = !ledState;
-        database.ref('/').update({
-            'LED_Status': ledState ? "ON" : "OFF"
-        });
-        alert("कमांड फायरबेस पर भेज दी गई है! LED_Status अब " + (ledState ? "ON" : "OFF") + " है।");
-    }
-</script>
+    <!-- Last Seen Bar (shown only when offline) -->
+    <div id="offlineBanner" class="offline-banner hidden">
+      <i data-lucide="wifi-off"></i>
+      <span id="offlineBannerText">Device offline — last data received: just now</span>
+    </div>
+  </header>
 
+  <!-- ═══════════════ MAIN GRID ═══════════════ -->
+  <main class="dashboard">
+
+    <!-- ─── BATTERY CARD ─── -->
+    <section class="card card-battery" id="batteryCard">
+      <div class="card-header">
+        <div class="card-icon card-icon--amber">
+          <i data-lucide="battery-charging"></i>
+        </div>
+        <div>
+          <h2 class="card-title">Battery</h2>
+          <p class="card-sub">Live power monitor</p>
+        </div>
+        <div class="card-badge" id="batteryStatusBadge">--</div>
+      </div>
+
+      <div class="battery-display">
+        <div class="battery-shell">
+          <div class="battery-fill" id="batteryFill">
+            <span class="battery-pct-text" id="batteryPctText">--%</span>
+          </div>
+          <div class="battery-tip"></div>
+        </div>
+      </div>
+
+      <div class="battery-stats">
+        <div class="stat">
+          <span class="stat-label">Voltage</span>
+          <span class="stat-value mono" id="voltageVal">--.- V</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Percentage</span>
+          <span class="stat-value mono" id="batteryPctVal">-- %</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Status</span>
+          <span class="stat-value" id="batteryHealthVal">--</span>
+        </div>
+      </div>
+
+      <!-- Hysteresis lock warning -->
+      <div id="hysteresisWarning" class="alert-strip alert-warning hidden">
+        <i data-lucide="shield-alert"></i>
+        Fan locked — battery below 40%. Unlocks at 60%.
+      </div>
+
+      <!-- Dead battery warning -->
+      <div id="deadBatteryWarning" class="alert-strip alert-danger hidden">
+        <i data-lucide="zap-off"></i>
+        Critical — below 15%. Emergency mode disabled.
+      </div>
+    </section>
+
+    <!-- ─── FAN CARD ─── -->
+    <section class="card card-fan" id="fanCard">
+      <div class="card-header">
+        <div class="card-icon card-icon--blue">
+          <i data-lucide="wind"></i>
+        </div>
+        <div>
+          <h2 class="card-title">Fan</h2>
+          <p class="card-sub">Relay 1 — Hysteresis + Emergency</p>
+        </div>
+        <div class="state-pill" id="fanStatePill">OFF</div>
+      </div>
+
+      <!-- Fan visual -->
+      <div class="fan-visual">
+        <div class="fan-hub" id="fanHub">
+          <svg viewBox="0 0 100 100" width="100" height="100">
+            <g id="fanBlades" transform-origin="50 50">
+              <ellipse cx="50" cy="20" rx="10" ry="22" fill="var(--fan-blade)" transform="rotate(0 50 50)"/>
+              <ellipse cx="50" cy="20" rx="10" ry="22" fill="var(--fan-blade)" transform="rotate(120 50 50)"/>
+              <ellipse cx="50" cy="20" rx="10" ry="22" fill="var(--fan-blade)" transform="rotate(240 50 50)"/>
+              <circle cx="50" cy="50" r="10" fill="var(--fan-hub-color)"/>
+            </g>
+          </svg>
+        </div>
+        <div class="fan-status-text" id="fanStatusText">Fan is OFF</div>
+      </div>
+
+      <!-- Control buttons -->
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btnFanToggle" onclick="sendCommand('toggleFan')">
+          <i data-lucide="power"></i>
+          <span>Toggle Fan</span>
+        </button>
+        <button class="btn btn-emergency" id="btnFanEmergency" onclick="sendCommand('fanEmergency')">
+          <i data-lucide="timer"></i>
+          <span id="emergencyBtnText">Emergency 10 Min</span>
+        </button>
+      </div>
+
+      <!-- Emergency countdown -->
+      <div id="emergencyCountdown" class="countdown-bar hidden">
+        <div class="countdown-header">
+          <i data-lucide="alarm-clock"></i>
+          <span>Emergency Mode Active</span>
+          <span id="emergencyTimeLeft" class="countdown-time">10:00</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill progress-fill--blue" id="emergencyProgress" style="width:100%"></div>
+        </div>
+      </div>
+
+      <!-- Lock state indicator -->
+      <div id="fanLockInfo" class="info-strip hidden">
+        <i data-lucide="lock"></i>
+        <span>Normal toggle locked — use Emergency if urgent.</span>
+      </div>
+    </section>
+
+    <!-- ─── OUTSIDE LIGHT CARD ─── -->
+    <section class="card card-outside" id="outsideLightCard">
+      <div class="card-header">
+        <div class="card-icon card-icon--amber">
+          <i data-lucide="sun"></i>
+        </div>
+        <div>
+          <h2 class="card-title">Outside Light</h2>
+          <p class="card-sub">Relay 2 — PIR + Force Mode</p>
+        </div>
+        <div class="state-pill" id="outsideLightPill">OFF</div>
+      </div>
+
+      <!-- Light visual -->
+      <div class="light-visual" id="outsideLightVisual">
+        <div class="light-bulb" id="outsideBulb">
+          <i data-lucide="lightbulb"></i>
+        </div>
+        <div class="light-rays" id="outsideRays">
+          <div class="ray"></div><div class="ray"></div><div class="ray"></div>
+          <div class="ray"></div><div class="ray"></div><div class="ray"></div>
+        </div>
+        <div class="light-mode-label" id="outsideModeLabel">Auto (PIR)</div>
+      </div>
+
+      <!-- Mode indicator strips -->
+      <div id="outsideAutoStrip" class="mode-strip mode-auto">
+        <i data-lucide="cpu"></i>
+        <span>Auto Mode — PIR controlled (18:00–06:00)</span>
+      </div>
+      <div id="outsideForceOnStrip" class="mode-strip mode-force-on hidden">
+        <i data-lucide="zap"></i>
+        <span>Force ON — <span id="forceOnTimeLeft">60:00</span> remaining</span>
+      </div>
+      <div id="outsideForceOffStrip" class="mode-strip mode-force-off hidden">
+        <i data-lucide="zap-off"></i>
+        <span>Force OFF — <span id="forceOffTimeLeft">60:00</span> remaining</span>
+      </div>
+
+      <!-- Force mode progress bar -->
+      <div id="forceProgressWrap" class="progress-track progress-outside hidden">
+        <div class="progress-fill progress-fill--amber" id="forceProgress"></div>
+      </div>
+
+      <!-- Buttons -->
+      <div class="btn-group">
+        <button class="btn btn-amber" id="btnOutsideToggle" onclick="sendCommand('toggleOutsideLight')">
+          <i data-lucide="toggle-left"></i>
+          <span>Force Toggle (1 hr)</span>
+        </button>
+        <button class="btn btn-ghost" id="btnOutsideReset" onclick="sendCommand('resetOutsideLight')">
+          <i data-lucide="rotate-ccw"></i>
+          <span>Reset to Auto</span>
+        </button>
+      </div>
+
+      <!-- ══ PIR HOLD TIMER CONTROL (NEW) ══
+           Writes to Firebase /Settings/PIR_Timeout_Minutes.
+           NodeMCU reads this every 15 s and updates its internal timer. -->
+      <div class="pir-setting-panel">
+        <div class="pir-setting-header">
+          <i data-lucide="radio"></i>
+          <span class="pir-setting-title">PIR Hold Timer</span>
+          <span class="pir-setting-value" id="pirTimerDisplay">3 min</span>
+        </div>
+        <div class="pir-slider-wrap">
+          <span class="pir-slider-label">1 min</span>
+          <input
+            type="range"
+            id="pirSlider"
+            min="1"
+            max="10"
+            step="1"
+            value="3"
+            class="pir-slider"
+            oninput="onPirSliderInput(this.value)"
+            onchange="onPirSliderCommit(this.value)"
+          />
+          <span class="pir-slider-label">10 min</span>
+        </div>
+        <p class="pir-hint">
+          <i data-lucide="info"></i>
+          Light stays ON for this long after last detected motion.
+          Change is applied to device within ~15 seconds.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─── INSIDE LIGHT CARD ─── -->
+    <section class="card card-inside" id="insideLightCard">
+      <div class="card-header">
+        <div class="card-icon card-icon--purple">
+          <i data-lucide="lamp-desk"></i>
+        </div>
+        <div>
+          <h2 class="card-title">Inside Light</h2>
+          <p class="card-sub">Relay 3 (D7/GPIO13) — Simple ON/OFF</p>
+        </div>
+        <div class="state-pill" id="insideLightPill">OFF</div>
+      </div>
+
+      <!-- Light visual -->
+      <div class="light-visual">
+        <div class="light-bulb" id="insideBulb">
+          <i data-lucide="lamp-desk"></i>
+        </div>
+        <div class="light-rays" id="insideRays">
+          <div class="ray"></div><div class="ray"></div><div class="ray"></div>
+          <div class="ray"></div><div class="ray"></div><div class="ray"></div>
+        </div>
+      </div>
+
+      <!-- Button -->
+      <div class="btn-group">
+        <button class="btn btn-purple btn-full" id="btnInsideToggle" onclick="sendCommand('toggleInsideLight')">
+          <i data-lucide="power"></i>
+          <span id="insideBtnText">Turn ON Inside Light</span>
+        </button>
+      </div>
+
+      <div class="inside-light-info info-strip">
+        <i data-lucide="info"></i>
+        <span>No timers. Direct toggle control only.</span>
+      </div>
+    </section>
+
+    <!-- ─── SYSTEM INFO CARD ─── -->
+    <section class="card card-system" id="systemCard">
+      <div class="card-header">
+        <div class="card-icon card-icon--green">
+          <i data-lucide="activity"></i>
+        </div>
+        <div>
+          <h2 class="card-title">System Status</h2>
+          <p class="card-sub">NodeMCU ESP8266 diagnostics</p>
+        </div>
+      </div>
+
+      <div class="system-grid">
+        <div class="sys-item">
+          <span class="sys-label"><i data-lucide="wifi"></i> Connection</span>
+          <span class="sys-value" id="sysConnection">--</span>
+        </div>
+        <div class="sys-item">
+          <span class="sys-label"><i data-lucide="clock"></i> NTP Synced</span>
+          <span class="sys-value" id="sysNtp">--</span>
+        </div>
+        <div class="sys-item">
+          <span class="sys-label"><i data-lucide="activity"></i> Device Time</span>
+          <span class="sys-value mono" id="sysDeviceTime">--:--:--</span>
+        </div>
+        <div class="sys-item">
+          <span class="sys-label"><i data-lucide="timer"></i> Last Update</span>
+          <span class="sys-value" id="sysLastUpdate">--</span>
+        </div>
+        <div class="sys-item">
+          <span class="sys-label"><i data-lucide="radio"></i> PIR Motion</span>
+          <span class="sys-value" id="sysPirStatus">--</span>
+        </div>
+        <div class="sys-item">
+          <span class="sys-label"><i data-lucide="database"></i> Firebase</span>
+          <span class="sys-value" id="sysFirebase">Connecting…</span>
+        </div>
+        <div class="sys-item">
+          <span class="sys-label"><i data-lucide="settings"></i> PIR Timeout</span>
+          <span class="sys-value" id="sysPirTimeout">-- min</span>
+        </div>
+        <div class="sys-item">
+          <span class="sys-label"><i data-lucide="cpu"></i> Board</span>
+          <span class="sys-value">NodeMCU ESP8266</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═══════════════ TOAST NOTIFICATIONS ═══════════════ -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- ═══════════════ COMMAND SPINNER OVERLAY ═══════════════ -->
+  <div id="cmdSpinner" class="cmd-spinner hidden">
+    <div class="spinner-ring"></div>
+    <span>Sending command…</span>
+  </div>
+
+  <!-- ═══════════════ MASTER KILL SWITCH OVERLAY ═══════════════
+       Displayed when /System_Status/Master_Block = true.
+       Covers the entire viewport. ALL buttons are disabled via JS.
+  ══════════════════════════════════════════════════════════════ -->
+  <div id="killSwitchOverlay" class="kill-switch-overlay hidden" role="alertdialog" aria-modal="true" aria-label="System Blocked">
+    <div class="kill-switch-inner">
+
+      <!-- Animated warning icon -->
+      <div class="kill-icon-ring">
+        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="50,8 96,88 4,88" fill="none" stroke="hsl(0,90%,58%)" stroke-width="5" stroke-linejoin="round"/>
+          <line x1="50" y1="36" x2="50" y2="62" stroke="hsl(0,90%,58%)" stroke-width="7" stroke-linecap="round"/>
+          <circle cx="50" cy="74" r="4" fill="hsl(0,90%,58%)"/>
+        </svg>
+      </div>
+
+      <!-- Main warning text -->
+      <h1 class="kill-title">
+        <span class="kill-emoji">⚠️</span> SYSTEM BLOCKED BY EXTERNAL SIGNAL
+      </h1>
+
+      <p class="kill-sub">
+        All device controls have been remotely disabled.<br/>
+        The system will resume automatically once the block is lifted.
+      </p>
+
+      <!-- Live status badge -->
+      <div class="kill-status-badge">
+        <span class="kill-status-dot"></span>
+        Master Kill Switch Active
+      </div>
+
+      <!-- Timestamp of when block was received -->
+      <p class="kill-timestamp" id="killTimestamp">Blocked at: --:--:--</p>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════ FIREBASE SDK ═══════════════ -->
+  <!-- Firebase v9 Compat (CDN) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <script src="app.js"></script>
+
+  <script>
+    // Initialize Lucide icons after DOM is ready
+    lucide.createIcons();
+  </script>
 </body>
 </html>
