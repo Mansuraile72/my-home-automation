@@ -176,6 +176,38 @@
         <i data-lucide="zap-off"></i>
         Critical — below 15%. Emergency mode disabled.
       </div>
+
+      <!-- ── Voltage Calibration ── -->
+      <div class="cal-section">
+        <div class="cal-header">
+          <i data-lucide="sliders-horizontal"></i>
+          <span class="cal-title">Voltage Calibration</span>
+          <span class="cal-active-badge">
+            Active: <strong id="calActiveMult">1.150</strong>×
+          </span>
+        </div>
+        <p class="cal-hint">
+          Multiply = Multimeter ÷ Dashboard reading. Range: 0.50 – 2.00.
+          Changes take effect on the NodeMCU's next settings poll (~30 s).
+        </p>
+        <div class="cal-controls">
+          <input
+            type="number"
+            id="calInput"
+            class="cal-input"
+            step="0.01"
+            min="0.50"
+            max="2.00"
+            value="1.15"
+            aria-label="Voltage calibration multiplier"
+          />
+          <button class="btn btn-amber cal-btn" id="btnCalUpdate" onclick="updateVoltageCalibration()">
+            <i data-lucide="upload-cloud"></i>
+            Apply
+          </button>
+        </div>
+      </div>
+
     </section>
 
     <!-- ─── FAN CARD ─── -->

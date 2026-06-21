@@ -1421,7 +1421,98 @@ body.system-locked .orb-3 { background: radial-gradient(circle, hsl(0, 70%, 38%)
   margin-top: 0;
 }
 
+/* ══ VOLTAGE CALIBRATION SECTION (inside Battery card) ══ */
+
+.cal-section {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.cal-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.cal-header > i {
+  width: 16px; height: 16px;
+  color: var(--amber);
+  flex-shrink: 0;
+}
+
+.cal-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.cal-active-badge {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-full);
+  background: var(--amber-dim);
+  color: var(--amber);
+  border: 1px solid hsla(38, 100%, 60%, 0.25);
+  white-space: nowrap;
+}
+
+.cal-active-badge strong {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem;
+}
+
+.cal-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.cal-controls {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+/* Number input — styled to match dark glassmorphism theme */
+.cal-input {
+  flex: 1;
+  background: hsla(222, 30%, 8%, 0.7);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 0.5rem 0.75rem;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+  -moz-appearance: textfield; /* Firefox: hide spinner arrows */
+}
+.cal-input::-webkit-outer-spin-button,
+.cal-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.cal-input:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px hsla(38, 100%, 60%, 0.15);
+}
+
+.cal-btn {
+  flex-shrink: 0;
+  gap: 0.35rem;
+  padding: 0.5rem 1rem;
+}
+.cal-btn i { width: 15px; height: 15px; }
+
 /* ══ RESPONSIVE ══ */
+
 
 @media (max-width: 768px) {
   .dashboard { padding: var(--space-md); gap: var(--space-md); }

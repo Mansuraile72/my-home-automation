@@ -37,8 +37,9 @@ const PIR_DEFAULT_MIN = 3;
 const PATH_STATE    = '/device/state';
 const PATH_COMMANDS = '/device/commands';
 const PATH_PIR      = '/Settings/PIR_Timeout_Minutes';
-const PATH_KILL     = '/System_Status/Master_Block';  // ← Kill switch path
-const PATH_SENSOR   = '/Sensor_Data';                 // ← DHT-11 temperature & humidity
+const PATH_KILL     = '/System_Status/Master_Block';
+const PATH_SENSOR   = '/Sensor_Data';
+const PATH_VOLT_CAL = '/Settings/voltageCalibration'; // ← Cloud calibration
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  FIREBASE INIT — No signIn() call needed with Test Mode rules
@@ -161,6 +162,11 @@ const DOM = {
   humArc:             $('humArc'),
   tempGauge:          $('tempGauge'),
   humGauge:           $('humGauge'),
+
+  // Voltage calibration
+  calInput:       $('calInput'),
+  calActiveMult:  $('calActiveMult'),
+  btnCalUpdate:   $('btnCalUpdate'),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -294,6 +300,62 @@ db.ref(PATH_PIR).on('value', (snapshot) => {
     state.pirHoldMinutes           = minutes;
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  FIREBASE LISTENER — Voltage Calibration
+//  Keeps the input and badge in sync when the NodeMCU seeds the value on
+//  first boot, or if another device changes the setting.
+// ─────────────────────────────────────────────────────────────────────────────
+
+db.ref(PATH_VOLT_CAL).on('value', (snapshot) => {
+  const raw = snapshot.val();
+
+  // Node doesn't exist yet — firmware will seed it on its next fetchSettings()
+  if (raw === null) return;
+
+  const cal = parseFloat(raw);
+  if (isNaN(cal) || cal < 0.50 || cal > 2.00) return;  // Ignore garbage
+
+  // Update badge (e.g. "1.150") and input box without triggering a write
+  DOM.calActiveMult.textContent = cal.toFixed(3);
+  DOM.calInput.value            = cal.toFixed(2);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  UPDATE VOLTAGE CALIBRATION — called from onclick in index.html
+// ─────────────────────────────────────────────────────────────────────────────
+
+function updateVoltageCalibration() {
+  const raw = parseFloat(DOM.calInput.value);
+
+  // Client-side range guard — same limits as the firmware
+  if (isNaN(raw) || raw < 0.50 || raw > 2.00) {
+    showToast('Value must be between 0.50 and 2.00', 'error', 'alert-triangle');
+    return;
+  }
+
+  // Round to 3 decimal places to keep Firebase clean
+  const cal = Math.round(raw * 1000) / 1000;
+
+  DOM.btnCalUpdate.disabled = true;
+
+  db.ref(PATH_VOLT_CAL).set(cal)
+    .then(() => {
+      DOM.calActiveMult.textContent = cal.toFixed(3);
+      showToast(
+        `Calibration set to ${cal.toFixed(3)}× — NodeMCU will apply within ~30 s`,
+        'success',
+        'check-circle'
+      );
+    })
+    .catch((err) => {
+      console.error('[Cal] Firebase write failed:', err);
+      showToast('Failed to save calibration — check Firebase connection', 'error', 'alert-triangle');
+    })
+    .finally(() => {
+      DOM.btnCalUpdate.disabled = false;
+    });
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  FIREBASE LISTENER — DHT-11 Sensor Data
