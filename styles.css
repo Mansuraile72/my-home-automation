@@ -1511,23 +1511,282 @@ body.system-locked .orb-3 { background: radial-gradient(circle, hsl(0, 70%, 38%)
 }
 .cal-btn i { width: 15px; height: 15px; }
 
-/* ══ RESPONSIVE ══ */
+/* ══════════════════════════════════════════════════════════════
+   RESPONSIVE — Mobile-first media queries
+   Breakpoints:
+     768px — tablet / large phone landscape
+     480px — phone portrait (standard)
+     360px — small phone (budget Android)
+   ══════════════════════════════════════════════════════════════ */
 
-
-@media (max-width: 768px) {
-  .dashboard { padding: var(--space-md); gap: var(--space-md); }
-  .header-inner { padding: 0.75rem var(--space-md); }
-  .device-clock { display: none; }
-  .card { padding: var(--space-lg); }
-  .battery-shell { width: 160px; height: 72px; }
-  .battery-pct-text { font-size: 0.9rem; }
-  .card-system { grid-column: auto; }
-  .system-grid { grid-template-columns: 1fr 1fr; }
-  .toast-container { right: var(--space-md); bottom: var(--space-md); max-width: calc(100vw - 2rem); }
+/* ── Touch devices: disable card hover lift (prevents scroll jitter) ── */
+@media (hover: none) and (pointer: coarse) {
+  .card:hover {
+    transform: none;
+    border-color: var(--border);
+  }
+  .btn:hover { transform: none; }
+  .btn-primary:hover,
+  .btn-emergency:hover,
+  .btn-amber:hover,
+  .btn-purple:hover { transform: none; }
 }
 
+/* ─────────────────── 768 px — Tablet / Landscape phone ─────────────────── */
+@media (max-width: 768px) {
+
+  /* Layout */
+  .dashboard {
+    padding: var(--space-md);
+    gap: var(--space-md);
+    /* Allow cards to shrink below 340 px */
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+
+  /* Header */
+  .header-inner { padding: 0.75rem var(--space-md); }
+  .device-clock { display: none; }   /* reclaimed by status badge */
+
+  /* Cards */
+  .card { padding: var(--space-lg); }
+
+  /* Battery */
+  .battery-shell    { width: 160px; height: 72px; }
+  .battery-pct-text { font-size: 0.9rem; }
+
+  /* System card — un-span so it fits the grid naturally */
+  .card-system { grid-column: auto; }
+  .system-grid { grid-template-columns: 1fr 1fr; }
+
+  /* Sensor card — un-span as well */
+  .card-sensor { grid-column: auto; }
+
+  /* Toasts */
+  .toast-container {
+    right: var(--space-md);
+    bottom: var(--space-md);
+    max-width: calc(100vw - 2rem);
+  }
+
+  /* Offline banner — add side padding */
+  .offline-banner { padding: 0.5rem var(--space-md); }
+
+  /* Kill switch inner panel */
+  .kill-switch-inner {
+    padding: var(--space-xl) var(--space-lg);
+  }
+}
+
+/* ─────────────────── 480 px — Phone portrait ─────────────────── */
 @media (max-width: 480px) {
-  .brand-sub { display: none; }
+
+  /* ── Layout ── */
+  .dashboard {
+    padding: var(--space-sm) var(--space-sm);
+    gap: var(--space-sm);
+    /* Single column below 480 px — no more minmax-forcing two columns */
+    grid-template-columns: 1fr;
+  }
+
+  .card { padding: var(--space-md); gap: var(--space-md); }
+
+  /* System card full-width */
+  .card-system  { grid-column: 1 / -1; }
+  .card-sensor  { grid-column: 1 / -1; }
+
+  /* ── Header ── */
+  .header-inner {
+    padding: 0.625rem var(--space-sm);
+    gap: var(--space-sm);
+    flex-wrap: nowrap;    /* keep brand + badge on one line */
+  }
+
+  .brand { gap: 0.5rem; }
+  .brand-icon { width: 36px; height: 36px; }
+  .brand-icon i { width: 18px; height: 18px; }
+  .brand-title { font-size: 0.9rem; }
+  .brand-sub   { display: none; }   /* too cramped on 480 px */
+
+  .status-badge {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.6rem;
+    gap: 0.35rem;
+    white-space: nowrap;
+  }
+
+  /* ── Offline banner ── */
+  .offline-banner { padding: 0.4rem var(--space-sm); font-size: 0.78rem; }
+
+  /* ── Battery card ── */
+  .battery-shell    { width: 140px; height: 64px; }
+  .battery-pct-text { font-size: 0.82rem; }
+
+  /* Three stats → two stats + one spanning */
   .battery-stats { grid-template-columns: 1fr 1fr; }
   .battery-stats .stat:last-child { grid-column: 1 / -1; }
+
+  .stat { padding: var(--space-xs) var(--space-xs); }
+  .stat-value { font-size: 0.82rem; }
+
+  /* ── Sensor card — stack gauges vertically ── */
+  .sensor-gauges {
+    grid-template-columns: 1fr;
+    gap: var(--space-sm);
+  }
+
+  /* On a full-width single-column gauge the arc can sit top-right safely */
+  .sensor-gauge {
+    padding: var(--space-md);
+  }
+
+  .sensor-gauge-value {
+    /* Clamp more aggressively so arc doesn't overlap */
+    font-size: clamp(1.6rem, 10vw, 2.2rem);
+  }
+
+  /* Arc ring: slightly smaller on phone */
+  .sensor-arc {
+    width: 64px;
+    height: 64px;
+    right: var(--space-md);
+  }
+
+  /* ── Buttons — ensure 44 px touch target ── */
+  .btn {
+    min-height: 44px;
+    padding: 0.7rem 1rem;
+    font-size: 0.82rem;
+  }
+
+  .btn-group { gap: var(--space-xs); }
+
+  /* Full-width override stays intact */
+  .btn-full { flex: 1 1 100%; }
+
+  /* ── PIR slider panel ── */
+  .pir-setting-header {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  /* Slider row: put labels above/below on very small screens — wrap them */
+  .pir-slider-wrap {
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+
+  /* Make the slider track full-width when wrapped */
+  .pir-slider { min-width: 100%; order: 2; }
+  .pir-slider-label { order: 1; }
+  .pir-slider-label:last-child { order: 3; margin-left: auto; }
+
+  /* The blue timer badge — float right */
+  .pir-setting-value { margin-left: auto; }
+
+  /* ── Calibration section ── */
+  .cal-header {
+    gap: 0.4rem;
+    row-gap: 0.3rem;
+  }
+
+  /* On narrow screens, drop the active badge below the title */
+  .cal-active-badge {
+    margin-left: 0;
+    order: 3;
+    width: 100%;
+    text-align: center;
+  }
+
+  .cal-controls {
+    gap: var(--space-xs);
+  }
+
+  .cal-input { min-height: 44px; font-size: 0.95rem; }
+  .cal-btn   { min-height: 44px; }
+
+  /* ── System grid — full two-column keeps working; labels shrink ── */
+  .system-grid { grid-template-columns: 1fr 1fr; gap: var(--space-xs); }
+  .sys-item  { padding: var(--space-xs) var(--space-sm); }
+  .sys-label { font-size: 0.68rem; }
+  .sys-value { font-size: 0.82rem; word-break: break-all; }
+
+  /* ── Kill switch inner panel ── */
+  .kill-switch-inner {
+    padding: var(--space-lg) var(--space-md);
+    gap: var(--space-md);
+  }
+
+  .kill-title { font-size: clamp(1rem, 5vw, 1.3rem); }
+  .kill-sub   { font-size: 0.82rem; }
+  .kill-icon-ring { width: 72px; height: 72px; }
+
+  /* ── Toasts — full-width bottom strip on phone ── */
+  .toast-container {
+    left: var(--space-sm);
+    right: var(--space-sm);
+    bottom: var(--space-sm);
+    max-width: none;
+  }
+
+  .toast { font-size: 0.8rem; }
+
+  /* ── Card badge — prevent overflow ── */
+  .card-badge {
+    font-size: 0.68rem;
+    padding: 0.2rem 0.5rem;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ── Alert and info strips ── */
+  .alert-strip,
+  .info-strip {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.625rem;
+    flex-wrap: wrap;
+  }
+}
+
+/* ─────────────────── 360 px — Small budget phones ─────────────────── */
+@media (max-width: 360px) {
+
+  html { font-size: 15px; }  /* Scale everything down 1 px */
+
+  .dashboard { padding: var(--space-xs); gap: var(--space-xs); }
+  .card      { padding: var(--space-sm); gap: var(--space-sm); border-radius: var(--radius-lg); }
+
+  /* Header — tightest fit */
+  .header-inner { padding: 0.5rem var(--space-xs); }
+  .brand-title  { font-size: 0.82rem; }
+  .brand-icon   { width: 30px; height: 30px; }
+  .brand-icon i { width: 15px; height: 15px; }
+
+  /* Battery */
+  .battery-shell    { width: 120px; height: 56px; }
+  .battery-pct-text { font-size: 0.75rem; }
+  .battery-stats    { grid-template-columns: 1fr; }
+  .battery-stats .stat:last-child { grid-column: auto; }
+
+  /* Sensor value — extra small */
+  .sensor-gauge-value { font-size: clamp(1.4rem, 9vw, 1.9rem); }
+
+  /* Arc ring hidden below 360 px to prevent any overlap */
+  .sensor-arc { display: none; }
+
+  /* System grid — single column */
+  .system-grid { grid-template-columns: 1fr; }
+
+  /* Buttons */
+  .btn { font-size: 0.78rem; padding: 0.65rem 0.75rem; }
+
+  /* Kill switch */
+  .kill-switch-inner {
+    padding: var(--space-md) var(--space-sm);
+    border-radius: var(--radius-lg);
+  }
+  .kill-icon-ring { width: 56px; height: 56px; }
+
+  /* Toasts */
+  .toast-container { left: var(--space-xs); right: var(--space-xs); }
 }
