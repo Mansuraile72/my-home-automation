@@ -294,7 +294,10 @@ body {
   margin: 0 auto;
   padding: var(--space-xl);
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  /* 6-column base so we can split precisely:
+     Row 1: Sensor (3 cols = half) | Battery (3 cols = half)
+     Row 2: Fan (2 cols) | Outside Light (2 cols) | Inside Light (2 cols) */
+  grid-template-columns: repeat(6, 1fr);
   gap: var(--space-lg);
 }
 
@@ -856,8 +859,17 @@ body {
   transform: none !important;
 }
 
-/* ══ SYSTEM CARD ══ */
-.card-system { grid-column: 1 / -1; }
+/* ══ CARD GRID LAYOUT ══
+   System card is now inside the Settings Drawer — not in the main grid.
+   Explicit column-spans enforce the two-row layout:
+     Row 1 — Sensor (half) + Battery (half)
+     Row 2 — Fan + Outside Light + Inside Light (thirds) */
+
+.card-sensor  { grid-column: span 3; }  /* left half  */
+.card-battery { grid-column: span 3; }  /* right half */
+.card-fan     { grid-column: span 2; }  /* first third  */
+.card-outside { grid-column: span 2; }  /* second third */
+.card-inside  { grid-column: span 2; }  /* third third  */
 
 .system-grid {
   display: grid;
@@ -1281,9 +1293,9 @@ body.system-locked .orb-3 { background: radial-gradient(circle, hsl(0, 70%, 38%)
   box-shadow: var(--shadow-glow-teal);
 }
 
-/* Sensor card spans full grid width */
+/* Sensor card — left half of the top row */
 .card-sensor {
-  grid-column: 1 / -1;
+  grid-column: span 3;
 }
 
 /* Gauge row */
@@ -1542,16 +1554,38 @@ body.system-locked .orb-3 { background: radial-gradient(circle, hsl(0, 70%, 38%)
   .btn-purple:hover { transform: none; }
 }
 
+/* ─────────────────── 1024 px — Small desktop / large tablet ─────────────────── */
+@media (max-width: 1024px) {
+  /* Collapse to 4-column grid:
+     Sensor (2 cols = half) | Battery (2 cols = half)
+     Fan (4/3 ≈ 2 cols each — use 2+2+4 workaround → stack fan+outside, inside full)
+     Actually: keep 4 cols, each control card spans 2 */
+  .dashboard {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .card-sensor  { grid-column: span 2; }
+  .card-battery { grid-column: span 2; }
+  .card-fan     { grid-column: span 2; }
+  .card-outside { grid-column: span 2; }
+  .card-inside  { grid-column: span 4; }  /* full row on 4-col grid */
+}
+
 /* ─────────────────── 768 px — Tablet / Landscape phone ─────────────────── */
 @media (max-width: 768px) {
 
-  /* Layout */
+  /* 2-column grid — each card spans 1 col (auto) */
   .dashboard {
     padding: var(--space-md);
     gap: var(--space-md);
-    /* Allow cards to shrink below 340 px */
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: 1fr 1fr;
   }
+
+  /* All cards fill naturally in 2 columns */
+  .card-sensor,
+  .card-battery,
+  .card-fan,
+  .card-outside,
+  .card-inside  { grid-column: span 1; }
 
   /* Header */
   .header-inner { padding: 0.75rem var(--space-md); }
@@ -1564,12 +1598,8 @@ body.system-locked .orb-3 { background: radial-gradient(circle, hsl(0, 70%, 38%)
   .battery-shell    { width: 160px; height: 72px; }
   .battery-pct-text { font-size: 0.9rem; }
 
-  /* System card — un-span so it fits the grid naturally */
-  .card-system { grid-column: auto; }
+  /* System grid inside drawer */
   .system-grid { grid-template-columns: 1fr 1fr; }
-
-  /* Sensor card — un-span as well */
-  .card-sensor { grid-column: auto; }
 
   /* Toasts */
   .toast-container {
@@ -1578,7 +1608,7 @@ body.system-locked .orb-3 { background: radial-gradient(circle, hsl(0, 70%, 38%)
     max-width: calc(100vw - 2rem);
   }
 
-  /* Offline banner — add side padding */
+  /* Offline banner */
   .offline-banner { padding: 0.5rem var(--space-md); }
 
   /* Kill switch inner panel */
@@ -1590,19 +1620,21 @@ body.system-locked .orb-3 { background: radial-gradient(circle, hsl(0, 70%, 38%)
 /* ─────────────────── 480 px — Phone portrait ─────────────────── */
 @media (max-width: 480px) {
 
-  /* ── Layout ── */
+  /* ── Layout — single column ── */
   .dashboard {
     padding: var(--space-sm) var(--space-sm);
     gap: var(--space-sm);
-    /* Single column below 480 px — no more minmax-forcing two columns */
     grid-template-columns: 1fr;
   }
 
   .card { padding: var(--space-md); gap: var(--space-md); }
 
-  /* System card full-width */
-  .card-system  { grid-column: 1 / -1; }
-  .card-sensor  { grid-column: 1 / -1; }
+  /* All cards full-width on phone */
+  .card-sensor,
+  .card-battery,
+  .card-fan,
+  .card-outside,
+  .card-inside  { grid-column: 1 / -1; }
 
   /* ── Header ── */
   .header-inner {

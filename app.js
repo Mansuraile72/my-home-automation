@@ -87,8 +87,8 @@ let isKillSwitchActive = false;
 //  Rate = (Δpct / Δtime).  If the battery is charging (Δpct > 0)
 //  we show "Charging" instead of a countdown.
 // ─────────────────────────────────────────────────────────────────────────────
-const BAT_HISTORY_WINDOW_MS = 5 * 60 * 1000;  // 5 minutes
-const BAT_MIN_SAMPLES       = 3;               // Need at least 3 points to estimate
+const BAT_HISTORY_WINDOW_MS = 10 * 60 * 1000; // 10-minute rolling window for accuracy
+const BAT_MIN_SAMPLES       = 3;               // absolute minimum entry count
 let   batHistory            = [];              // [{ ts: ms, pct: number }, ...]
 let   lastBatPushTs         = 0;               // Throttle: push at most once per heartbeat
 
@@ -724,7 +724,7 @@ function calcBatteryTimeLeft() {
   const newest  = batHistory[batHistory.length - 1];
   const deltaMin = (newest.ts - oldest.ts) / 60000;
 
-  if (deltaMin < 0.5) return 'Calculating…';   // window too short
+  if (deltaMin < 5) return 'Calculating…';   // Need ≥5 min of data for accuracy
 
   const deltaPct = oldest.pct - newest.pct;    // positive = draining
   if (deltaPct <= 0) return '⚡ Charging / Stable';
