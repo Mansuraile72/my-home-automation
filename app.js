@@ -57,6 +57,7 @@ let state = {
   lastTimestamp:           0,
   voltage:                 0,
   batteryPct:              0,
+  batteryMinsLeft:         -1,   // -1=unknown, -2=charging, >=0=minutes remaining
   fanState:                false,
   fanLocked:               false,
   fanEmergencyActive:      false,
@@ -206,6 +207,7 @@ db.ref(PATH_STATE).on('value', (snapshot) => {
   state.lastTimestamp           = data.timestamp            ?? state.lastTimestamp;
   state.voltage                 = data.voltage              ?? state.voltage;
   state.batteryPct              = data.batteryPct           ?? state.batteryPct;
+  state.batteryMinsLeft         = data.batteryMinsLeft      ?? state.batteryMinsLeft;
   state.fanState                = data.fanState             ?? state.fanState;
   state.fanLocked               = data.fanLocked            ?? state.fanLocked;
   state.fanEmergencyActive      = data.fanEmergencyActive   ?? state.fanEmergencyActive;
@@ -770,9 +772,26 @@ function renderBattery() {
   DOM.batteryHealthVal.textContent = hText;
   DOM.batteryHealthVal.className   = 'stat-value ' + hClass;
 
-  // Time remaining — powered by 5-min rolling history
+  // Time remaining — prefer device-calculated value (instant, accurate)
+  // Fall back to browser EMA only if device hasn't sent a value yet
   if (DOM.batteryTimeLeft) {
-    DOM.batteryTimeLeft.textContent = calcBatteryTimeLeft();
+    const minsLeft = state.batteryMinsLeft;
+    if (minsLeft === -2) {
+      DOM.batteryTimeLeft.textContent = '⚡ Charging / Stable';
+    } else if (minsLeft >= 0) {
+      // Device-provided accurate value — format as Xh Ym
+      const h = Math.floor(minsLeft / 60);
+      const m = minsLeft % 60;
+      let label = '';
+      if (h > 0 && m > 0) label = `~ ${h}h ${m}m`;
+      else if (h > 0)      label = `~ ${h}h`;
+      else                 label = `~ ${m}m`;
+      DOM.batteryTimeLeft.textContent = label;
+    } else {
+      // -1: device hasn't computed yet (just booted)
+      // Use browser EMA as a temporary placeholder
+      DOM.batteryTimeLeft.textContent = calcBatteryTimeLeft();
+    }
   }
 
   toggleEl(DOM.hysteresisWarning,  state.fanLocked && pct >= 15);
