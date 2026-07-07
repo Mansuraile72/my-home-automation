@@ -403,16 +403,35 @@ body {
 }
 
 /* ══ BATTERY CARD ══ */
-.battery-display {
+
+/* Horizontal body: shell on left, stats on right */
+.battery-body {
   display: flex;
+  align-items: stretch;
+  gap: var(--space-md);
+}
+
+.battery-visual-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  padding: var(--space-sm) 0;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+}
+
+.battery-volt-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--amber);
+  letter-spacing: -0.01em;
 }
 
 .battery-shell {
   position: relative;
-  width: 200px;
-  height: 90px;
+  width: 140px;
+  height: 68px;
   border: 3px solid var(--border);
   border-radius: 12px;
   display: flex;
@@ -420,6 +439,14 @@ body {
   overflow: visible;
   background: hsla(222, 30%, 8%, 0.6);
   transition: var(--transition);
+}
+
+/* Stats column on the right */
+.battery-stats {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
 }
 
 .battery-shell::after {
@@ -514,23 +541,32 @@ body {
   border-radius: var(--radius-sm);
   padding: var(--space-sm) var(--space-xs);
   text-align: center;
+  flex: 1;
 }
 
 .stat-label {
   display: block;
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.15rem;
 }
 
 .stat-value {
   display: block;
-  font-size: 0.88rem;
-  font-weight: 600;
+  font-size: 0.95rem;
+  font-weight: 700;
   color: var(--text-primary);
 }
+
+/* Time Remaining stat — highlight it */
+.stat-time-remaining {
+  border-color: hsla(210,100%,62%,0.2);
+  background: var(--blue-dim);
+}
+.stat-time-remaining .stat-label { color: hsl(210,100%,75%); }
+.stat-time-remaining .stat-value  { color: var(--blue); font-size: 0.9rem; }
 
 /* ══ FAN CARD ══ */
 .fan-visual {
@@ -1298,11 +1334,11 @@ body.system-locked .orb-3 { background: radial-gradient(circle, hsl(0, 70%, 38%)
   grid-column: span 3;
 }
 
-/* Gauge row */
+/* Sensor gauges — always vertical stack (card is half-screen wide) */
 .sensor-gauges {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-lg);
+  grid-template-columns: 1fr;
+  gap: var(--space-md);
 }
 
 /* Individual gauge cell */

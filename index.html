@@ -146,33 +146,37 @@
         <div class="card-badge" id="batteryStatusBadge">--</div>
       </div>
 
-      <div class="battery-display">
-        <div class="battery-shell">
-          <div class="battery-fill" id="batteryFill">
-            <span class="battery-pct-text" id="batteryPctText">--%</span>
-          </div>
-          <div class="battery-tip"></div>
-        </div>
-      </div>
+      <!-- Horizontal body: visual LEFT | stats RIGHT -->
+      <div class="battery-body">
 
-      <div class="battery-stats">
-        <div class="stat">
-          <span class="stat-label">Voltage</span>
-          <span class="stat-value mono" id="voltageVal">--.- V</span>
+        <!-- Left: battery shell visual -->
+        <div class="battery-visual-wrap">
+          <div class="battery-shell">
+            <div class="battery-fill" id="batteryFill">
+              <span class="battery-pct-text" id="batteryPctText">--%</span>
+            </div>
+            <div class="battery-tip"></div>
+          </div>
+          <p class="battery-volt-label" id="voltageVal">--.- V</p>
         </div>
-        <div class="stat">
-          <span class="stat-label">Percentage</span>
-          <span class="stat-value mono" id="batteryPctVal">-- %</span>
+
+        <!-- Right: stat tiles -->
+        <div class="battery-stats">
+          <div class="stat">
+            <span class="stat-label">Percentage</span>
+            <span class="stat-value mono" id="batteryPctVal">-- %</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Status</span>
+            <span class="stat-value" id="batteryHealthVal">--</span>
+          </div>
+          <div class="stat stat-time-remaining">
+            <span class="stat-label">Time Left</span>
+            <span class="stat-value mono" id="batteryTimeLeft">Calculating…</span>
+          </div>
         </div>
-        <div class="stat">
-          <span class="stat-label">Status</span>
-          <span class="stat-value" id="batteryHealthVal">--</span>
-        </div>
-        <div class="stat stat-time-remaining">
-          <span class="stat-label">Time Left</span>
-          <span class="stat-value mono" id="batteryTimeLeft">Calculating…</span>
-        </div>
-      </div>
+
+      </div><!-- /battery-body -->
 
       <!-- Hysteresis lock warning -->
       <div id="hysteresisWarning" class="alert-strip alert-warning hidden">

@@ -724,7 +724,7 @@ function calcBatteryTimeLeft() {
   const newest  = batHistory[batHistory.length - 1];
   const deltaMin = (newest.ts - oldest.ts) / 60000;
 
-  if (deltaMin < 5) return 'Calculating…';   // Need ≥5 min of data for accuracy
+  if (deltaMin < 2) return 'Calculating…';   // Need ≥2 min of data for first estimate
 
   const deltaPct = oldest.pct - newest.pct;    // positive = draining
   if (deltaPct <= 0) return '⚡ Charging / Stable';
