@@ -53,6 +53,11 @@
           <i data-lucide="clock"></i>
           <span id="deviceClock">--:--:--</span>
         </div>
+
+        <!-- Settings Gear Button -->
+        <button class="gear-btn" id="gearBtn" onclick="toggleSettingsDrawer()" aria-label="Open Settings">
+          <i data-lucide="settings-2"></i>
+        </button>
       </div>
     </div>
 
@@ -163,6 +168,10 @@
           <span class="stat-label">Status</span>
           <span class="stat-value" id="batteryHealthVal">--</span>
         </div>
+        <div class="stat stat-time-remaining">
+          <span class="stat-label">Time Left</span>
+          <span class="stat-value mono" id="batteryTimeLeft">Calculating…</span>
+        </div>
       </div>
 
       <!-- Hysteresis lock warning -->
@@ -177,37 +186,6 @@
         Critical — below 15%. Emergency mode disabled.
       </div>
 
-      <!-- ── Voltage Calibration ── -->
-      <div class="cal-section">
-        <div class="cal-header">
-          <i data-lucide="sliders-horizontal"></i>
-          <span class="cal-title">Voltage Calibration</span>
-          <span class="cal-active-badge">
-            Active: <strong id="calActiveMult">1.150</strong>×
-          </span>
-        </div>
-        <p class="cal-hint">
-          Multiply = Multimeter ÷ Dashboard reading. Range: 0.50 – 2.00.
-          Changes take effect on the NodeMCU's next settings poll (~30 s).
-        </p>
-        <div class="cal-controls">
-          <input
-            type="number"
-            id="calInput"
-            class="cal-input"
-            step="0.01"
-            min="0.50"
-            max="2.00"
-            value="1.15"
-            aria-label="Voltage calibration multiplier"
-          />
-          <button class="btn btn-amber cal-btn" id="btnCalUpdate" onclick="updateVoltageCalibration()">
-            <i data-lucide="upload-cloud"></i>
-            Apply
-          </button>
-        </div>
-      </div>
-
     </section>
 
     <!-- ─── FAN CARD ─── -->
@@ -218,7 +196,7 @@
         </div>
         <div>
           <h2 class="card-title">Fan</h2>
-          <p class="card-sub">Relay 1 — Hysteresis + Emergency</p>
+          <p class="card-sub">Relay 1</p>
         </div>
         <div class="state-pill" id="fanStatePill">OFF</div>
       </div>
@@ -277,7 +255,7 @@
         </div>
         <div>
           <h2 class="card-title">Outside Light</h2>
-          <p class="card-sub">Relay 2 — PIR + Force Mode</p>
+          <p class="card-sub">Relay 2 · Auto (PIR)</p>
         </div>
         <div class="state-pill" id="outsideLightPill">OFF</div>
       </div>
@@ -324,37 +302,6 @@
           <span>Reset to Auto</span>
         </button>
       </div>
-
-      <!-- ══ PIR HOLD TIMER CONTROL (NEW) ══
-           Writes to Firebase /Settings/PIR_Timeout_Minutes.
-           NodeMCU reads this every 15 s and updates its internal timer. -->
-      <div class="pir-setting-panel">
-        <div class="pir-setting-header">
-          <i data-lucide="radio"></i>
-          <span class="pir-setting-title">PIR Hold Timer</span>
-          <span class="pir-setting-value" id="pirTimerDisplay">3 min</span>
-        </div>
-        <div class="pir-slider-wrap">
-          <span class="pir-slider-label">1 min</span>
-          <input
-            type="range"
-            id="pirSlider"
-            min="1"
-            max="10"
-            step="1"
-            value="3"
-            class="pir-slider"
-            oninput="onPirSliderInput(this.value)"
-            onchange="onPirSliderCommit(this.value)"
-          />
-          <span class="pir-slider-label">10 min</span>
-        </div>
-        <p class="pir-hint">
-          <i data-lucide="info"></i>
-          Light stays ON for this long after last detected motion.
-          Change is applied to device within ~15 seconds.
-        </p>
-      </div>
     </section>
 
     <!-- ─── INSIDE LIGHT CARD ─── -->
@@ -365,7 +312,7 @@
         </div>
         <div>
           <h2 class="card-title">Inside Light</h2>
-          <p class="card-sub">Relay 3 (D7/GPIO13) — Simple ON/OFF</p>
+          <p class="card-sub">Relay 3</p>
         </div>
         <div class="state-pill" id="insideLightPill">OFF</div>
       </div>
@@ -388,59 +335,6 @@
           <span id="insideBtnText">Turn ON Inside Light</span>
         </button>
       </div>
-
-      <div class="inside-light-info info-strip">
-        <i data-lucide="info"></i>
-        <span>No timers. Direct toggle control only.</span>
-      </div>
-    </section>
-
-    <!-- ─── SYSTEM INFO CARD ─── -->
-    <section class="card card-system" id="systemCard">
-      <div class="card-header">
-        <div class="card-icon card-icon--green">
-          <i data-lucide="activity"></i>
-        </div>
-        <div>
-          <h2 class="card-title">System Status</h2>
-          <p class="card-sub">NodeMCU ESP8266 diagnostics</p>
-        </div>
-      </div>
-
-      <div class="system-grid">
-        <div class="sys-item">
-          <span class="sys-label"><i data-lucide="wifi"></i> Connection</span>
-          <span class="sys-value" id="sysConnection">--</span>
-        </div>
-        <div class="sys-item">
-          <span class="sys-label"><i data-lucide="clock"></i> NTP Synced</span>
-          <span class="sys-value" id="sysNtp">--</span>
-        </div>
-        <div class="sys-item">
-          <span class="sys-label"><i data-lucide="activity"></i> Device Time</span>
-          <span class="sys-value mono" id="sysDeviceTime">--:--:--</span>
-        </div>
-        <div class="sys-item">
-          <span class="sys-label"><i data-lucide="timer"></i> Last Update</span>
-          <span class="sys-value" id="sysLastUpdate">--</span>
-        </div>
-        <div class="sys-item">
-          <span class="sys-label"><i data-lucide="radio"></i> PIR Motion</span>
-          <span class="sys-value" id="sysPirStatus">--</span>
-        </div>
-        <div class="sys-item">
-          <span class="sys-label"><i data-lucide="database"></i> Firebase</span>
-          <span class="sys-value" id="sysFirebase">Connecting…</span>
-        </div>
-        <div class="sys-item">
-          <span class="sys-label"><i data-lucide="settings"></i> PIR Timeout</span>
-          <span class="sys-value" id="sysPirTimeout">-- min</span>
-        </div>
-        <div class="sys-item">
-          <span class="sys-label"><i data-lucide="cpu"></i> Board</span>
-          <span class="sys-value">NodeMCU ESP8266</span>
-        </div>
-      </div>
     </section>
 
   </main>
@@ -453,6 +347,138 @@
     <div class="spinner-ring"></div>
     <span>Sending command…</span>
   </div>
+
+  <!-- ═══════════════ SETTINGS DRAWER ═══════════════
+       Opens from the right when the gear ⚙ button is clicked.
+       Contains: System diagnostics, PIR timer, Voltage calibration.
+  ════════════════════════════════════════════════════ -->
+  <div id="settingsOverlay" class="settings-overlay" onclick="closeSettingsDrawer()"></div>
+  <aside id="settingsDrawer" class="settings-drawer" aria-label="Settings">
+
+    <!-- Drawer Header -->
+    <div class="drawer-header">
+      <div class="drawer-title-wrap">
+        <i data-lucide="settings-2"></i>
+        <span class="drawer-title">Settings &amp; Diagnostics</span>
+      </div>
+      <button class="drawer-close-btn" onclick="closeSettingsDrawer()" aria-label="Close">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+
+    <div class="drawer-body">
+
+      <!-- ── System Status Section ── -->
+      <div class="drawer-section">
+        <div class="drawer-section-label">
+          <i data-lucide="activity"></i>
+          System Status
+        </div>
+        <div class="system-grid">
+          <div class="sys-item">
+            <span class="sys-label"><i data-lucide="wifi"></i> Connection</span>
+            <span class="sys-value" id="sysConnection">--</span>
+          </div>
+          <div class="sys-item">
+            <span class="sys-label"><i data-lucide="clock"></i> NTP Synced</span>
+            <span class="sys-value" id="sysNtp">--</span>
+          </div>
+          <div class="sys-item">
+            <span class="sys-label"><i data-lucide="activity"></i> Device Time</span>
+            <span class="sys-value mono" id="sysDeviceTime">--:--:--</span>
+          </div>
+          <div class="sys-item">
+            <span class="sys-label"><i data-lucide="timer"></i> Last Update</span>
+            <span class="sys-value" id="sysLastUpdate">--</span>
+          </div>
+          <div class="sys-item">
+            <span class="sys-label"><i data-lucide="radio"></i> PIR Motion</span>
+            <span class="sys-value" id="sysPirStatus">--</span>
+          </div>
+          <div class="sys-item">
+            <span class="sys-label"><i data-lucide="database"></i> Firebase</span>
+            <span class="sys-value" id="sysFirebase">Connecting…</span>
+          </div>
+          <div class="sys-item">
+            <span class="sys-label"><i data-lucide="settings"></i> PIR Timeout</span>
+            <span class="sys-value" id="sysPirTimeout">-- min</span>
+          </div>
+          <div class="sys-item">
+            <span class="sys-label"><i data-lucide="cpu"></i> Board</span>
+            <span class="sys-value">NodeMCU ESP8266</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PIR Hold Timer Section ── -->
+      <div class="drawer-section">
+        <div class="drawer-section-label">
+          <i data-lucide="radio"></i>
+          PIR Hold Timer
+        </div>
+        <div class="pir-setting-panel">
+          <div class="pir-setting-header">
+            <i data-lucide="radio"></i>
+            <span class="pir-setting-title">Hold Duration</span>
+            <span class="pir-setting-value" id="pirTimerDisplay">3 min</span>
+          </div>
+          <div class="pir-slider-wrap">
+            <span class="pir-slider-label">1 min</span>
+            <input
+              type="range"
+              id="pirSlider"
+              min="1"
+              max="10"
+              step="1"
+              value="3"
+              class="pir-slider"
+              oninput="onPirSliderInput(this.value)"
+              onchange="onPirSliderCommit(this.value)"
+            />
+            <span class="pir-slider-label">10 min</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Voltage Calibration Section ── -->
+      <div class="drawer-section">
+        <div class="drawer-section-label">
+          <i data-lucide="sliders-horizontal"></i>
+          Voltage Calibration
+        </div>
+        <div class="cal-section" style="border-top:none;padding-top:0">
+          <div class="cal-header">
+            <i data-lucide="sliders-horizontal"></i>
+            <span class="cal-title">Calibration Multiplier</span>
+            <span class="cal-active-badge">
+              Active: <strong id="calActiveMult">1.150</strong>×
+            </span>
+          </div>
+          <div class="cal-controls">
+            <input
+              type="number"
+              id="calInput"
+              class="cal-input"
+              step="0.01"
+              min="0.50"
+              max="2.00"
+              value="1.15"
+              aria-label="Voltage calibration multiplier"
+              placeholder="0.50 – 2.00"
+            />
+            <button class="btn btn-amber cal-btn" id="btnCalUpdate" onclick="updateVoltageCalibration()">
+              <i data-lucide="upload-cloud"></i>
+              Apply
+            </button>
+          </div>
+          <p class="cal-hint" style="margin-top:0.25rem">
+            Multimeter reading ÷ Dashboard reading. Applied within ~30 s.
+          </p>
+        </div>
+      </div>
+
+    </div><!-- /drawer-body -->
+  </aside>
 
   <!-- ═══════════════ MASTER KILL SWITCH OVERLAY ═══════════════
        Displayed when /System_Status/Master_Block = true.

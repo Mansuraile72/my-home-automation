@@ -81,6 +81,18 @@ let pirCommitTimer     = null;
 let isKillSwitchActive = false;
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  BATTERY TIME-REMAINING HISTORY
+//  Stores a rolling 5-minute window of { ts, pct } readings.
+//  Each entry is added when a fresh Firebase heartbeat arrives.
+//  Rate = (Δpct / Δtime).  If the battery is charging (Δpct > 0)
+//  we show "Charging" instead of a countdown.
+// ─────────────────────────────────────────────────────────────────────────────
+const BAT_HISTORY_WINDOW_MS = 5 * 60 * 1000;  // 5 minutes
+const BAT_MIN_SAMPLES       = 3;               // Need at least 3 points to estimate
+let   batHistory            = [];              // [{ ts: ms, pct: number }, ...]
+let   lastBatPushTs         = 0;               // Throttle: push at most once per heartbeat
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  DOM CACHE
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -93,6 +105,7 @@ const DOM = {
   deviceClock:       $('deviceClock'),
   offlineBanner:     $('offlineBanner'),
   offlineBannerText: $('offlineBannerText'),
+  gearBtn:           $('gearBtn'),
 
   // Battery
   batteryFill:        $('batteryFill'),
@@ -101,6 +114,7 @@ const DOM = {
   voltageVal:         $('voltageVal'),
   batteryPctVal:      $('batteryPctVal'),
   batteryHealthVal:   $('batteryHealthVal'),
+  batteryTimeLeft:    $('batteryTimeLeft'),
   hysteresisWarning:  $('hysteresisWarning'),
   deadBatteryWarning: $('deadBatteryWarning'),
 
@@ -151,6 +165,10 @@ const DOM = {
   cmdSpinner:        $('cmdSpinner'),
   killSwitchOverlay: $('killSwitchOverlay'),
   killTimestamp:     $('killTimestamp'),
+
+  // Settings drawer
+  settingsDrawer:  $('settingsDrawer'),
+  settingsOverlay: $('settingsOverlay'),
 
   // Sensor card
   sensorCard:         $('sensorCard'),
@@ -671,9 +689,65 @@ function renderOnlineStatus(online, secondsSince) {
 
 // ── Battery ───────────────────────────────────────────────────────────────────
 
+/**
+ * Push a new reading into the rolling 5-minute history window.
+ * Called once per Firebase heartbeat.
+ */
+function pushBatHistory(pct) {
+  const now = Date.now();
+  // Throttle: don't push more than once per 8 seconds (matches heartbeat cadence)
+  if (now - lastBatPushTs < 8000) return;
+  lastBatPushTs = now;
+
+  batHistory.push({ ts: now, pct });
+
+  // Remove entries older than the window
+  const cutoff = now - BAT_HISTORY_WINDOW_MS;
+  batHistory = batHistory.filter(e => e.ts >= cutoff);
+}
+
+/**
+ * Calculate remaining battery time based on the drain rate over the last 5 min.
+ *
+ * Algorithm:
+ *   deltaPct = oldest.pct - newest.pct   (positive = draining)
+ *   deltaMin = (newest.ts - oldest.ts) / 60000
+ *   rate     = deltaPct / deltaMin        (% per minute)
+ *   left     = newest.pct / rate          (minutes left)
+ *
+ * @returns {string}  e.g. "~ 3h 20m", "⚡ Charging", "Calculating…"
+ */
+function calcBatteryTimeLeft() {
+  if (batHistory.length < BAT_MIN_SAMPLES) return 'Calculating…';
+
+  const oldest  = batHistory[0];
+  const newest  = batHistory[batHistory.length - 1];
+  const deltaMin = (newest.ts - oldest.ts) / 60000;
+
+  if (deltaMin < 0.5) return 'Calculating…';   // window too short
+
+  const deltaPct = oldest.pct - newest.pct;    // positive = draining
+  if (deltaPct <= 0) return '⚡ Charging / Stable';
+
+  const ratePerMin = deltaPct / deltaMin;
+  const minsLeft   = newest.pct / ratePerMin;
+
+  if (!isFinite(minsLeft) || minsLeft <= 0) return 'Calculating…';
+
+  const h = Math.floor(minsLeft / 60);
+  const m = Math.round(minsLeft % 60);
+
+  if (h === 0) return `~ ${m}m`;
+  if (m === 0) return `~ ${h}h`;
+  return `~ ${h}h ${m}m`;
+}
+
 function renderBattery() {
   const pct  = state.batteryPct;
   const volt = state.voltage;
+
+  // Push into rolling history for time-remaining calculation
+  pushBatHistory(pct);
 
   DOM.batteryFill.style.width    = Math.max(0, Math.min(100, pct)) + '%';
   DOM.batteryPctText.textContent = pct + '%';
@@ -695,6 +769,11 @@ function renderBattery() {
   else if (pct < 60) { hText = 'Medium';    hClass = ''; }
   DOM.batteryHealthVal.textContent = hText;
   DOM.batteryHealthVal.className   = 'stat-value ' + hClass;
+
+  // Time remaining — powered by 5-min rolling history
+  if (DOM.batteryTimeLeft) {
+    DOM.batteryTimeLeft.textContent = calcBatteryTimeLeft();
+  }
 
   toggleEl(DOM.hysteresisWarning,  state.fanLocked && pct >= 15);
   toggleEl(DOM.deadBatteryWarning, pct < 15);
@@ -936,6 +1015,37 @@ function showToast(message, type = 'info', iconOverride = null, ms = 3500) {
 function showSpinner(visible) {
   DOM.cmdSpinner.classList.toggle('hidden', !visible);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  SETTINGS DRAWER
+// ─────────────────────────────────────────────────────────────────────────────
+
+let _drawerOpen = false;
+
+function openSettingsDrawer() {
+  _drawerOpen = true;
+  DOM.settingsDrawer.classList.add('open');
+  DOM.settingsOverlay.classList.add('open');
+  DOM.gearBtn.classList.add('active');
+  // Re-render icons inside drawer (Lucide needs this after first paint)
+  lucide.createIcons();
+}
+
+function closeSettingsDrawer() {
+  _drawerOpen = false;
+  DOM.settingsDrawer.classList.remove('open');
+  DOM.settingsOverlay.classList.remove('open');
+  DOM.gearBtn.classList.remove('active');
+}
+
+function toggleSettingsDrawer() {
+  _drawerOpen ? closeSettingsDrawer() : openSettingsDrawer();
+}
+
+// Close drawer on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && _drawerOpen) closeSettingsDrawer();
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  BOOT

@@ -491,9 +491,19 @@ body {
 
 .battery-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: var(--space-sm);
 }
+
+/* Time Remaining stat spans full width for emphasis */
+.stat-time-remaining {
+  grid-column: 1 / -1;
+  border-color: hsla(210,100%,62%,0.2);
+  background: var(--blue-dim);
+}
+
+.stat-time-remaining .stat-label { color: hsl(210,100%,75%); }
+.stat-time-remaining .stat-value  { color: var(--blue); font-size: 1rem; }
 
 .stat {
   background: hsla(222, 30%, 8%, 0.5);
@@ -1789,4 +1799,205 @@ body.system-locked .orb-3 { background: radial-gradient(circle, hsl(0, 70%, 38%)
 
   /* Toasts */
   .toast-container { left: var(--space-xs); right: var(--space-xs); }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   GEAR BUTTON (Header)
+   ══════════════════════════════════════════════════════════════ */
+
+.gear-btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: hsla(222, 40%, 20%, 0.6);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+  flex-shrink: 0;
+  outline: none;
+}
+
+.gear-btn i { width: 18px; height: 18px; }
+
+.gear-btn:hover {
+  background: var(--blue-dim);
+  border-color: hsla(210, 100%, 62%, 0.4);
+  color: var(--blue);
+  box-shadow: 0 0 16px hsla(210, 100%, 62%, 0.2);
+  transform: rotate(30deg);
+}
+
+.gear-btn:active { transform: rotate(90deg) scale(0.95); }
+
+/* Spinning state when drawer is open */
+.gear-btn.active {
+  background: var(--blue-dim);
+  border-color: var(--blue);
+  color: var(--blue);
+  animation: gearSpin 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes gearSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(180deg); }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SETTINGS DRAWER
+   Slides in from the right side.
+   ══════════════════════════════════════════════════════════════ */
+
+/* Dim overlay behind the drawer */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: hsla(222, 30%, 5%, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.settings-overlay.open {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* The drawer panel itself */
+.settings-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 301;
+  width: min(420px, 92vw);
+  background: hsl(222, 28%, 9%);
+  border-left: 1px solid var(--border);
+  box-shadow: -12px 0 60px hsla(0, 0%, 0%, 0.5);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.settings-drawer.open {
+  transform: translateX(0);
+}
+
+/* Drawer header bar */
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem var(--space-lg);
+  border-bottom: 1px solid var(--border);
+  background: hsla(222, 30%, 11%, 0.9);
+  flex-shrink: 0;
+}
+
+.drawer-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.drawer-title-wrap i {
+  width: 18px;
+  height: 18px;
+  color: var(--blue);
+}
+
+.drawer-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+/* Close button (X) */
+.drawer-close-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: hsla(222, 30%, 20%, 0.6);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+  outline: none;
+}
+
+.drawer-close-btn i { width: 16px; height: 16px; }
+
+.drawer-close-btn:hover {
+  background: var(--red-dim);
+  border-color: hsla(0, 85%, 62%, 0.4);
+  color: var(--red);
+}
+
+/* Scrollable body of the drawer */
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  /* Custom scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.drawer-body::-webkit-scrollbar       { width: 5px; }
+.drawer-body::-webkit-scrollbar-track { background: transparent; }
+.drawer-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+/* Each named section inside the drawer */
+.drawer-section {
+  background: hsla(222, 30%, 11%, 0.7);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.drawer-section-label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border);
+}
+
+.drawer-section-label i {
+  width: 13px;
+  height: 13px;
+  color: var(--blue);
+  flex-shrink: 0;
+}
+
+/* Responsive: make drawer full-width on very small phones */
+@media (max-width: 480px) {
+  .settings-drawer {
+    width: 100vw;
+    border-left: none;
+  }
+
+  .battery-stats { grid-template-columns: 1fr 1fr; }
+  .battery-stats .stat:nth-child(3) { grid-column: 1 / -1; }
 }
