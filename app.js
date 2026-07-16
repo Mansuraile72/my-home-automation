@@ -24,7 +24,7 @@ const FIREBASE_CONFIG = {
 //  CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const OFFLINE_THRESHOLD_SEC  = 20;       // Declare offline after this many s
+const OFFLINE_THRESHOLD_SEC  = 60;       // Declare offline after this many s (1 minute)
 const FAN_EMERGENCY_TOTAL_MS = 600_000;  // 10 min in ms (must match firmware)
 const FORCE_MODE_TOTAL_MS    = 3_600_000; // 1 hr in ms
 
