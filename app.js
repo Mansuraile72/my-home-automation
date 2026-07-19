@@ -37,7 +37,8 @@ const PIR_DEFAULT_MIN = 3;
 const PATH_STATE    = '/device/state';
 const PATH_COMMANDS = '/device/commands';
 const PATH_PIR      = '/Settings/PIR_Timeout_Minutes';
-const PATH_KILL     = '/System_Status/Master_Block';
+const PATH_KILL          = '/System_Status/Master_Block';
+const PATH_KILL_STATE    = '/System_Status/Saved_State';  // lockedAt stored here
 const PATH_SENSOR   = '/Sensor_Data';
 const PATH_VOLT_CAL = '/Settings/voltageCalibration'; // ← Cloud calibration
 
@@ -430,10 +431,34 @@ function activateKillSwitch() {
   // Show overlay
   DOM.killSwitchOverlay.classList.remove('hidden');
 
-  // Record the time the block was received
-  const now = new Date();
-  const timeStr = now.toLocaleTimeString();
-  DOM.killTimestamp.textContent = `Blocked at: ${timeStr}`;
+  // ── Timestamp: prefer the device-recorded lockedAt from Firebase ─────────
+  // The firmware writes lockedAt (IST epoch) to /System_Status/Saved_State
+  // at the exact moment it receives the lock signal.  Reading it here means
+  // the time is correct even after a browser refresh — we always show WHEN
+  // the system was actually locked, not when the page was last loaded.
+  // Fallback: if Firebase read fails or lockedAt is missing, use browser time.
+  DOM.killTimestamp.textContent = 'Blocked at: …';   // placeholder while reading
+
+  db.ref(PATH_KILL_STATE + '/lockedAt').once('value')
+    .then(snap => {
+      const epoch = snap.val(); // IST epoch seconds from firmware
+      let timeStr;
+      if (epoch && epoch > 1000000000) {
+        // Convert IST epoch → JS Date (epoch is already IST, so treat as UTC
+        // seconds and compensate: IST = UTC+5:30, so subtract 19800 s to get UTC)
+        const utcMs = (epoch - 19800) * 1000;
+        const d = new Date(utcMs);
+        timeStr = d.toLocaleTimeString();
+      } else {
+        // lockedAt not yet written (NTP wasn't synced when lock fired) → browser time
+        timeStr = new Date().toLocaleTimeString();
+      }
+      DOM.killTimestamp.textContent = `Blocked at: ${timeStr}`;
+    })
+    .catch(() => {
+      // Firebase read failed — fallback to browser time
+      DOM.killTimestamp.textContent = `Blocked at: ${new Date().toLocaleTimeString()}`;
+    });
 
   // Apply locked-state theme to body (dims cards, changes orbs/header)
   document.body.classList.add('system-locked');
