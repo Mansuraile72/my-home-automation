@@ -162,14 +162,6 @@
           <span class="stat-label">Voltage</span>
           <span class="stat-value mono" id="voltageVal">--.- V</span>
         </div>
-        <div class="stat">
-          <span class="stat-label">Current</span>
-          <span class="stat-value mono" id="currentVal">--.- A</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Power</span>
-          <span class="stat-value mono" id="powerVal">-- W</span>
-        </div>
         <div class="stat stat-time-remaining">
           <span class="stat-label">Time Left</span>
           <span class="stat-value mono" id="batteryTimeLeft">Calculating…</span>
@@ -192,6 +184,51 @@
         Critical — below 15%. Emergency mode disabled.
       </div>
 
+    </section>
+
+    <!-- ⚡ ENERGY CARD ⚡ -->
+    <section class="card card-energy" id="energyCard">
+      <div class="card-header">
+        <div class="card-icon" style="background:var(--amber-dim); color:var(--amber);">
+          <i data-lucide="zap"></i>
+        </div>
+        <div>
+          <h2 class="card-title">Energy Monitor</h2>
+          <p class="card-sub">Live Power & History</p>
+        </div>
+        <div class="card-badge" id="energyStatusBadge">Live</div>
+      </div>
+
+      <div class="battery-stats" style="margin-top:1.5rem; grid-template-columns: 1fr 1fr;">
+        <div class="stat">
+          <span class="stat-label">Current</span>
+          <span class="stat-value mono" id="currentVal">--.- A</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Power</span>
+          <span class="stat-value mono" id="powerVal">-- W</span>
+        </div>
+        <div class="stat stat-time-remaining" style="grid-column: 1 / -1;">
+          <span class="stat-label">Today's Usage</span>
+          <span class="stat-value mono" id="todayEnergyVal">-- Wh</span>
+        </div>
+      </div>
+
+      <div style="margin-top:1.5rem; border-top:1px solid var(--border); padding-top:1rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+          <h3 style="font-size:0.9rem; color:var(--text-muted); margin:0;">Energy History</h3>
+          <select id="historyRange" style="background:var(--bg-card); color:var(--text-primary); border:1px solid var(--border); padding:4px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer;">
+            <option value="1">Last 1 Day</option>
+            <option value="5" selected>Last 5 Days</option>
+            <option value="10">Last 10 Days</option>
+            <option value="30">Last 30 Days</option>
+          </select>
+        </div>
+        <div id="historyDataList" style="display:flex; flex-direction:column; gap:8px;">
+          <!-- History items will be populated by JS -->
+          <div style="color:var(--text-muted); font-size:0.8rem; text-align:center;">Loading history...</div>
+        </div>
+      </div>
     </section>
 
 

@@ -58,9 +58,11 @@ let state = {
   lastTimestamp:           0,
   voltage:                 0,
   batteryPct:              0,
-  batteryMinsLeft:         -1,   // -1=unknown, -2=charging, >=0=minutes remaining
+  batteryMinsLeft:         -1,
   currentA:                0.0,
   powerW:                  0.0,
+  todayEnergy:             0.0,
+  energyHistory:           {},
   fanState:                false,
   fanLocked:               false,
   fanEmergencyActive:      false,
@@ -118,6 +120,9 @@ const DOM = {
   voltageVal:         $('voltageVal'),
   currentVal:         $('currentVal'),
   powerVal:           $('powerVal'),
+  todayEnergyVal:     $('todayEnergyVal'),
+  historyRange:       $('historyRange'),
+  historyDataList:    $('historyDataList'),
   batteryPctVal:      $('batteryPctVal'),
   batteryHealthVal:   $('batteryHealthVal'),
   batteryTimeLeft:    $('batteryTimeLeft'),
@@ -213,6 +218,7 @@ db.ref(PATH_STATE).on('value', (snapshot) => {
   state.voltage                 = data.voltage              ?? state.voltage;
   state.batteryPct              = data.batteryPct           ?? state.batteryPct;
   state.batteryMinsLeft         = data.batteryMinsLeft      ?? state.batteryMinsLeft;
+  state.todayEnergy             = data.todayEnergy          ?? state.todayEnergy;
   state.fanState                = data.fanState             ?? state.fanState;
   state.fanLocked               = data.fanLocked            ?? state.fanLocked;
   state.fanEmergencyActive      = data.fanEmergencyActive   ?? state.fanEmergencyActive;
@@ -601,6 +607,7 @@ async function sendCommand(cmd) {
 function renderAll() {
   renderSensors();
   renderBattery();
+  renderEnergy();
   renderFan();
   renderOutsideLight();
   renderInsideLight();
@@ -1001,6 +1008,58 @@ db.ref('.info/connected').on('value', (snap) => {
     DOM.statusText.textContent  = 'No Internet';
   }
 });
+
+// ⚡ ENERGY RENDER & HISTORY LISTENER ⚡
+const PATH_ENERGY_HISTORY = '/Energy_History';
+
+db.ref(PATH_ENERGY_HISTORY).on('value', (snapshot) => {
+  const data = snapshot.val();
+  if (data) {
+    state.energyHistory = data;
+    renderEnergyHistory();
+  }
+});
+
+function renderEnergy() {
+  if (DOM.currentVal) DOM.currentVal.textContent = state.currentA.toFixed(2) + ' A';
+  if (DOM.powerVal) DOM.powerVal.textContent     = state.powerW.toFixed(0) + ' W';
+  if (DOM.todayEnergyVal) DOM.todayEnergyVal.textContent = state.todayEnergy.toFixed(1) + ' Wh';
+}
+
+function renderEnergyHistory() {
+  if (!DOM.historyDataList || !DOM.historyRange) return;
+  
+  const range = parseInt(DOM.historyRange.value) || 5;
+  const historyKeys = Object.keys(state.energyHistory).sort((a, b) => {
+    const aVal = parseInt(a.replace('Day_', '')) || 0;
+    const bVal = parseInt(b.replace('Day_', '')) || 0;
+    return bVal - aVal;
+  });
+
+  const sliced = historyKeys.slice(0, range);
+  
+  DOM.historyDataList.innerHTML = '';
+  if (sliced.length === 0) {
+    DOM.historyDataList.innerHTML = '<div style="color:var(--text-muted); font-size:0.8rem; text-align:center;">No history available yet.</div>';
+    return;
+  }
+
+  sliced.forEach(key => {
+    const energy = parseFloat(state.energyHistory[key]) || 0;
+    const dateNum = parseInt(key.replace('Day_', ''));
+    const dateObj = new Date(dateNum * 86400000);
+    const dateStr = dateObj.toLocaleDateString();
+
+    const row = document.createElement('div');
+    row.style = 'display:flex; justify-content:space-between; background:var(--bg-card); padding:8px 12px; border-radius:4px; border:1px solid var(--border);';
+    row.innerHTML = `<span style="color:var(--text-muted); font-size:0.85rem;">${dateStr}</span> <span class="mono" style="color:var(--text-primary); font-weight:700;">${energy.toFixed(1)} Wh</span>`;
+    DOM.historyDataList.appendChild(row);
+  });
+}
+
+if (DOM.historyRange) {
+  DOM.historyRange.addEventListener('change', renderEnergyHistory);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  HELPER UTILITIES
