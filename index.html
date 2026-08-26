@@ -70,9 +70,151 @@
 
   <!-- ═══════════════ MAIN GRID ═══════════════ -->
   <main class="dashboard">
+<section class="card card-fan" id="fanCard">
+      <div class="card-header">
+        <div class="card-icon card-icon--blue">
+          <i data-lucide="wind"></i>
+        </div>
+        <div>
+          <h2 class="card-title">Fan</h2>
+          <p class="card-sub">Relay 1</p>
+        </div>
+        <div class="state-pill" id="fanStatePill">OFF</div>
+      </div>
 
-    <!-- ─── SENSOR CARD (Temperature & Humidity — DHT-11) ─── -->
-    <section class="card card-sensor" id="sensorCard">
+      <!-- Fan visual -->
+      <div class="fan-visual">
+        <div class="fan-hub" id="fanHub">
+          <svg viewBox="0 0 100 100" width="100" height="100">
+            <g id="fanBlades" transform-origin="50 50">
+              <ellipse cx="50" cy="20" rx="10" ry="22" fill="var(--fan-blade)" transform="rotate(0 50 50)"/>
+              <ellipse cx="50" cy="20" rx="10" ry="22" fill="var(--fan-blade)" transform="rotate(120 50 50)"/>
+              <ellipse cx="50" cy="20" rx="10" ry="22" fill="var(--fan-blade)" transform="rotate(240 50 50)"/>
+              <circle cx="50" cy="50" r="10" fill="var(--fan-hub-color)"/>
+            </g>
+          </svg>
+        </div>
+        <div class="fan-status-text" id="fanStatusText">Fan is OFF</div>
+      </div>
+
+      <!-- Control buttons -->
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btnFanToggle" onclick="sendCommand('toggleFan')">
+          <i data-lucide="power"></i>
+          <span>Toggle Fan</span>
+        </button>
+        <button class="btn btn-emergency" id="btnFanEmergency" onclick="sendCommand('fanEmergency')">
+          <i data-lucide="timer"></i>
+          <span id="emergencyBtnText">Emergency 10 Min</span>
+        </button>
+      </div>
+
+      <!-- Emergency countdown -->
+      <div id="emergencyCountdown" class="countdown-bar hidden">
+        <div class="countdown-header">
+          <i data-lucide="alarm-clock"></i>
+          <span>Emergency Mode Active</span>
+          <span id="emergencyTimeLeft" class="countdown-time">10:00</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill progress-fill--blue" id="emergencyProgress" style="width:100%"></div>
+        </div>
+      </div>
+
+      <!-- Lock state indicator -->
+      <div id="fanLockInfo" class="info-strip hidden">
+        <i data-lucide="lock"></i>
+        <span>Normal toggle locked — use Emergency if urgent.</span>
+      </div>
+    </section>
+
+    <!-- ─── OUTSIDE LIGHT CARD ─── -->
+    <section class="card card-outside" id="outsideLightCard">
+      <div class="card-header">
+        <div class="card-icon card-icon--amber">
+          <i data-lucide="sun"></i>
+        </div>
+        <div>
+          <h2 class="card-title">Outside Light</h2>
+          <p class="card-sub">Relay 2 · Auto (PIR)</p>
+        </div>
+        <div class="state-pill" id="outsideLightPill">OFF</div>
+      </div>
+
+      <!-- Light visual -->
+      <div class="light-visual" id="outsideLightVisual">
+        <div class="light-bulb" id="outsideBulb">
+          <i data-lucide="lightbulb"></i>
+        </div>
+        <div class="light-rays" id="outsideRays">
+          <div class="ray"></div><div class="ray"></div><div class="ray"></div>
+          <div class="ray"></div><div class="ray"></div><div class="ray"></div>
+        </div>
+        <div class="light-mode-label" id="outsideModeLabel">Auto (PIR)</div>
+      </div>
+
+      <!-- Mode indicator strips -->
+      <div id="outsideForceOnStrip" class="mode-strip mode-force-on hidden">
+        <i data-lucide="zap"></i>
+        <span>Force ON — <span id="forceOnTimeLeft">60:00</span> remaining</span>
+      </div>
+      <div id="outsideForceOffStrip" class="mode-strip mode-force-off hidden">
+        <i data-lucide="zap-off"></i>
+        <span>Force OFF — <span id="forceOffTimeLeft">60:00</span> remaining</span>
+      </div>
+
+      <!-- Force mode progress bar -->
+      <div id="forceProgressWrap" class="progress-track progress-outside hidden">
+        <div class="progress-fill progress-fill--amber" id="forceProgress"></div>
+      </div>
+
+      <!-- Buttons -->
+      <div class="btn-group">
+        <button class="btn btn-amber" id="btnOutsideToggle" onclick="sendCommand('toggleOutsideLight')">
+          <i data-lucide="toggle-left"></i>
+          <span>Force Toggle (1 hr)</span>
+        </button>
+        <button class="btn btn-ghost" id="btnOutsideReset" onclick="sendCommand('resetOutsideLight')">
+          <i data-lucide="rotate-ccw"></i>
+          <span>Reset to Auto</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ─── INSIDE LIGHT CARD ─── -->
+    <section class="card card-inside" id="insideLightCard">
+      <div class="card-header">
+        <div class="card-icon card-icon--purple">
+          <i data-lucide="lamp-desk"></i>
+        </div>
+        <div>
+          <h2 class="card-title">Inside Light</h2>
+          <p class="card-sub">Relay 3</p>
+        </div>
+        <div class="state-pill" id="insideLightPill">OFF</div>
+      </div>
+
+      <!-- Light visual -->
+      <div class="light-visual">
+        <div class="light-bulb" id="insideBulb">
+          <i data-lucide="lamp-desk"></i>
+        </div>
+        <div class="light-rays" id="insideRays">
+          <div class="ray"></div><div class="ray"></div><div class="ray"></div>
+          <div class="ray"></div><div class="ray"></div><div class="ray"></div>
+        </div>
+      </div>
+
+      <!-- Button -->
+      <div class="btn-group">
+        <button class="btn btn-purple btn-full" id="btnInsideToggle" onclick="sendCommand('toggleInsideLight')">
+          <i data-lucide="power"></i>
+          <span id="insideBtnText">Turn ON Inside Light</span>
+        </button>
+      </div>
+    </section>
+
+  <section class="card card-sensor" id="sensorCard">
       <div class="card-header">
         <div class="card-icon card-icon--teal">
           <i data-lucide="thermometer"></i>
@@ -187,7 +329,7 @@
     </section>
 
     <!-- ⚡ ENERGY CARD ⚡ -->
-    <section class="card card-energy" id="energyCard">
+    <section class="card card-energy" id="energyCard" style="grid-column: 1 / -1;">
       <div class="card-header">
         <div class="card-icon" style="background:var(--amber-dim); color:var(--amber);">
           <i data-lucide="zap"></i>
@@ -199,7 +341,7 @@
         <div class="card-badge" id="energyStatusBadge">Live</div>
       </div>
 
-      <div class="battery-stats" style="margin-top:1.5rem; grid-template-columns: 1fr 1fr;">
+      <div class="battery-stats" style="margin-top:1.5rem; ">
         <div class="stat">
           <span class="stat-label">Current</span>
           <span class="stat-value mono" id="currentVal">--.- A</span>
@@ -216,8 +358,8 @@
 
       <div style="margin-top:1.5rem; border-top:1px solid var(--border); padding-top:1rem;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-          <h3 style="font-size:0.9rem; color:var(--text-muted); margin:0;">Energy History</h3>
-          <select id="historyRange" style="background:var(--bg-card); color:var(--text-primary); border:1px solid var(--border); padding:4px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer;">
+          <h3 style="font-size:1.1rem; font-weight:bold; color:var(--text-muted); margin:0;">Energy History</h3>
+          <select id="historyRange" style="background:var(--bg-card); color:var(--text-primary); border:1px solid var(--border); padding:8px 12px; border-radius:4px; font-size:1rem; cursor:pointer;">
             <option value="1">Last 1 Day</option>
             <option value="5" selected>Last 5 Days</option>
             <option value="10">Last 10 Days</option>
@@ -226,161 +368,14 @@
         </div>
         <div id="historyDataList" style="display:flex; flex-direction:column; gap:8px;">
           <!-- History items will be populated by JS -->
-          <div style="color:var(--text-muted); font-size:0.8rem; text-align:center;">Loading history...</div>
+          <div style="color:var(--text-muted); font-size:1rem; text-align:center;">Loading history...</div>
         </div>
       </div>
     </section>
 
 
     <!-- ─── FAN CARD ─── -->
-    <section class="card card-fan" id="fanCard">
-      <div class="card-header">
-        <div class="card-icon card-icon--blue">
-          <i data-lucide="wind"></i>
-        </div>
-        <div>
-          <h2 class="card-title">Fan</h2>
-          <p class="card-sub">Relay 1</p>
-        </div>
-        <div class="state-pill" id="fanStatePill">OFF</div>
-      </div>
-
-      <!-- Fan visual -->
-      <div class="fan-visual">
-        <div class="fan-hub" id="fanHub">
-          <svg viewBox="0 0 100 100" width="100" height="100">
-            <g id="fanBlades" transform-origin="50 50">
-              <ellipse cx="50" cy="20" rx="10" ry="22" fill="var(--fan-blade)" transform="rotate(0 50 50)"/>
-              <ellipse cx="50" cy="20" rx="10" ry="22" fill="var(--fan-blade)" transform="rotate(120 50 50)"/>
-              <ellipse cx="50" cy="20" rx="10" ry="22" fill="var(--fan-blade)" transform="rotate(240 50 50)"/>
-              <circle cx="50" cy="50" r="10" fill="var(--fan-hub-color)"/>
-            </g>
-          </svg>
-        </div>
-        <div class="fan-status-text" id="fanStatusText">Fan is OFF</div>
-      </div>
-
-      <!-- Control buttons -->
-      <div class="btn-group">
-        <button class="btn btn-primary" id="btnFanToggle" onclick="sendCommand('toggleFan')">
-          <i data-lucide="power"></i>
-          <span>Toggle Fan</span>
-        </button>
-        <button class="btn btn-emergency" id="btnFanEmergency" onclick="sendCommand('fanEmergency')">
-          <i data-lucide="timer"></i>
-          <span id="emergencyBtnText">Emergency 10 Min</span>
-        </button>
-      </div>
-
-      <!-- Emergency countdown -->
-      <div id="emergencyCountdown" class="countdown-bar hidden">
-        <div class="countdown-header">
-          <i data-lucide="alarm-clock"></i>
-          <span>Emergency Mode Active</span>
-          <span id="emergencyTimeLeft" class="countdown-time">10:00</span>
-        </div>
-        <div class="progress-track">
-          <div class="progress-fill progress-fill--blue" id="emergencyProgress" style="width:100%"></div>
-        </div>
-      </div>
-
-      <!-- Lock state indicator -->
-      <div id="fanLockInfo" class="info-strip hidden">
-        <i data-lucide="lock"></i>
-        <span>Normal toggle locked — use Emergency if urgent.</span>
-      </div>
-    </section>
-
-    <!-- ─── OUTSIDE LIGHT CARD ─── -->
-    <section class="card card-outside" id="outsideLightCard">
-      <div class="card-header">
-        <div class="card-icon card-icon--amber">
-          <i data-lucide="sun"></i>
-        </div>
-        <div>
-          <h2 class="card-title">Outside Light</h2>
-          <p class="card-sub">Relay 2 · Auto (PIR)</p>
-        </div>
-        <div class="state-pill" id="outsideLightPill">OFF</div>
-      </div>
-
-      <!-- Light visual -->
-      <div class="light-visual" id="outsideLightVisual">
-        <div class="light-bulb" id="outsideBulb">
-          <i data-lucide="lightbulb"></i>
-        </div>
-        <div class="light-rays" id="outsideRays">
-          <div class="ray"></div><div class="ray"></div><div class="ray"></div>
-          <div class="ray"></div><div class="ray"></div><div class="ray"></div>
-        </div>
-        <div class="light-mode-label" id="outsideModeLabel">Auto (PIR)</div>
-      </div>
-
-      <!-- Mode indicator strips -->
-      <div id="outsideAutoStrip" class="mode-strip mode-auto">
-        <i data-lucide="cpu"></i>
-        <span>Auto Mode — PIR controlled (18:00–06:00)</span>
-      </div>
-      <div id="outsideForceOnStrip" class="mode-strip mode-force-on hidden">
-        <i data-lucide="zap"></i>
-        <span>Force ON — <span id="forceOnTimeLeft">60:00</span> remaining</span>
-      </div>
-      <div id="outsideForceOffStrip" class="mode-strip mode-force-off hidden">
-        <i data-lucide="zap-off"></i>
-        <span>Force OFF — <span id="forceOffTimeLeft">60:00</span> remaining</span>
-      </div>
-
-      <!-- Force mode progress bar -->
-      <div id="forceProgressWrap" class="progress-track progress-outside hidden">
-        <div class="progress-fill progress-fill--amber" id="forceProgress"></div>
-      </div>
-
-      <!-- Buttons -->
-      <div class="btn-group">
-        <button class="btn btn-amber" id="btnOutsideToggle" onclick="sendCommand('toggleOutsideLight')">
-          <i data-lucide="toggle-left"></i>
-          <span>Force Toggle (1 hr)</span>
-        </button>
-        <button class="btn btn-ghost" id="btnOutsideReset" onclick="sendCommand('resetOutsideLight')">
-          <i data-lucide="rotate-ccw"></i>
-          <span>Reset to Auto</span>
-        </button>
-      </div>
-    </section>
-
-    <!-- ─── INSIDE LIGHT CARD ─── -->
-    <section class="card card-inside" id="insideLightCard">
-      <div class="card-header">
-        <div class="card-icon card-icon--purple">
-          <i data-lucide="lamp-desk"></i>
-        </div>
-        <div>
-          <h2 class="card-title">Inside Light</h2>
-          <p class="card-sub">Relay 3</p>
-        </div>
-        <div class="state-pill" id="insideLightPill">OFF</div>
-      </div>
-
-      <!-- Light visual -->
-      <div class="light-visual">
-        <div class="light-bulb" id="insideBulb">
-          <i data-lucide="lamp-desk"></i>
-        </div>
-        <div class="light-rays" id="insideRays">
-          <div class="ray"></div><div class="ray"></div><div class="ray"></div>
-          <div class="ray"></div><div class="ray"></div><div class="ray"></div>
-        </div>
-      </div>
-
-      <!-- Button -->
-      <div class="btn-group">
-        <button class="btn btn-purple btn-full" id="btnInsideToggle" onclick="sendCommand('toggleInsideLight')">
-          <i data-lucide="power"></i>
-          <span id="insideBtnText">Turn ON Inside Light</span>
-        </button>
-      </div>
-    </section>
-
+    
   </main>
 
   <!-- ═══════════════ TOAST NOTIFICATIONS ═══════════════ -->

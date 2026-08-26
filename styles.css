@@ -2046,3 +2046,7 @@ body.system-locked .orb-3 { background: radial-gradient(circle, hsl(0, 70%, 38%)
   .battery-stats { grid-template-columns: 1fr 1fr; }
   .battery-stats .stat:nth-child(3) { grid-column: 1 / -1; }
 }
+
+/* s ENERGY CARD FIX s */
+.card-energy { grid-column: 1 / -1; }
+

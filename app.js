@@ -890,9 +890,9 @@ function renderOutsideLight() {
   setPill(DOM.outsideLightPill, on);
   DOM.outsideBulb.classList.toggle('on', on);
 
-  DOM.outsideAutoStrip.classList.toggle('hidden',    mode !== 0);
-  DOM.outsideForceOnStrip.classList.toggle('hidden', mode !== 1);
-  DOM.outsideForceOffStrip.classList.toggle('hidden',mode !== 2);
+  if (DOM.outsideAutoStrip) DOM.outsideAutoStrip.classList.toggle('hidden',    mode !== 0);
+  if (DOM.outsideForceOnStrip) DOM.outsideForceOnStrip.classList.toggle('hidden', mode !== 1);
+  if (DOM.outsideForceOffStrip) DOM.outsideForceOffStrip.classList.toggle('hidden',mode !== 2);
 
   if (mode !== 0 && remMs > 0) {
     DOM.forceProgressWrap.classList.remove('hidden');
