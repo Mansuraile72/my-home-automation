@@ -59,6 +59,8 @@ let state = {
   voltage:                 0,
   batteryPct:              0,
   batteryMinsLeft:         -1,   // -1=unknown, -2=charging, >=0=minutes remaining
+  currentA:                0.0,
+  powerW:                  0.0,
   fanState:                false,
   fanLocked:               false,
   fanEmergencyActive:      false,
@@ -114,6 +116,8 @@ const DOM = {
   batteryPctText:     $('batteryPctText'),
   batteryStatusBadge: $('batteryStatusBadge'),
   voltageVal:         $('voltageVal'),
+  currentVal:         $('currentVal'),
+  powerVal:           $('powerVal'),
   batteryPctVal:      $('batteryPctVal'),
   batteryHealthVal:   $('batteryHealthVal'),
   batteryTimeLeft:    $('batteryTimeLeft'),
@@ -390,11 +394,16 @@ db.ref(PATH_SENSOR).on('value', (snapshot) => {
 
   const t = (data.Temperature != null) ? parseFloat(data.Temperature) : null;
   const h = (data.Humidity    != null) ? parseFloat(data.Humidity)    : null;
+  const c = (data.Current_A   != null) ? parseFloat(data.Current_A)   : null;
+  const p = (data.Power_W     != null) ? parseFloat(data.Power_W)     : null;
 
   if (t !== null) state.temperature = t;
   if (h !== null) state.humidity    = h;
+  if (c !== null) state.currentA    = c;
+  if (p !== null) state.powerW      = p;
 
   renderSensors();
+  renderBattery(); // Render battery to update Current/Power fields
 }, (err) => {
   console.error('[Sensor] Listener error:', err);
 });
@@ -780,6 +789,8 @@ function renderBattery() {
   DOM.batteryPctText.textContent = pct + '%';
   DOM.batteryPctVal.textContent  = pct + '%';
   DOM.voltageVal.textContent     = volt.toFixed(2) + ' V';
+  if (DOM.currentVal) DOM.currentVal.textContent = state.currentA.toFixed(2) + ' A';
+  if (DOM.powerVal) DOM.powerVal.textContent     = state.powerW.toFixed(0) + ' W';
   DOM.batteryStatusBadge.textContent = pct + '%';
 
   // Fill colour
