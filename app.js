@@ -27,6 +27,14 @@ database.ref("/").on("value", (snapshot) => {
         isOffline = (currentEpoch - data.Sensor_Data.Last_Heartbeat) > 60;
     }
 
+    // SYSTEM SETTINGS
+    if (data.Settings) {
+        if (data.Settings.voltageOffset !== undefined) latestSettings.voltageOffset = data.Settings.voltageOffset;
+        if (data.Settings.powerMultiplier !== undefined) latestSettings.powerMultiplier = data.Settings.powerMultiplier;
+        if (data.Settings.pirDurationMins !== undefined) latestSettings.pirDurationMins = data.Settings.pirDurationMins;
+        if (data.Settings.batteryHealth !== undefined) latestSettings.batteryHealth = data.Settings.batteryHealth;
+    }
+
     // SENSOR DATA - Only paint if online!
     if (data.Sensor_Data && !isOffline) {
 
@@ -48,7 +56,7 @@ database.ref("/").on("value", (snapshot) => {
         if (data.Sensor_Data.Power_W !== undefined) {
             document.getElementById("current-power").innerHTML = Math.round(data.Sensor_Data.Power_W) + `<span class="unit">W</span>`;
         }
-        if (data.Sensor_Data.Energy_Today_Wh !== undefined) {
+        if (data.Sensor_Data.Energy_Today_Wh !== undefined && !isViewingHistory) {
             document.getElementById("energy-total").innerHTML = (data.Sensor_Data.Energy_Today_Wh / 1000).toFixed(2) + `<span class="unit">kWh</span>`;
         }
         if (data.Sensor_Data.Temperature !== undefined) {
@@ -99,8 +107,20 @@ database.ref("/").on("value", (snapshot) => {
                 outsideLightMode = data.device.state.outsideLightMode;
                 const modeBadge = document.getElementById("light2-mode");
                 if (modeBadge) {
-                    modeBadge.innerText = outsideLightMode === "force" ? "Force" : "Auto";
-                    modeBadge.className = outsideLightMode === "force" ? "mode-badge force-mode" : "mode-badge auto-mode";
+                    if (outsideLightMode === "force") {
+                        modeBadge.innerText = "Force";
+                        modeBadge.className = "mode-badge force-mode";
+                    } else {
+                        if (data.device.state.outsideLightState === true) {
+                            modeBadge.innerText = "Motion Detected";
+                            modeBadge.className = "mode-badge auto-mode";
+                            modeBadge.style.backgroundColor = "#ff9800"; // Orange alert color
+                        } else {
+                            modeBadge.innerText = "Auto";
+                            modeBadge.className = "mode-badge auto-mode";
+                            modeBadge.style.backgroundColor = ""; // Reset
+                        }
+                    }
                 }
             }
             if (data.device.state.outsideLightForceEnd !== undefined) {
@@ -396,9 +416,11 @@ window.addEventListener('DOMContentLoaded', () => {
             if (start && end) {
                 if (start === today && end === today) {
                     energyLabel.innerText = "Today";
+                    isViewingHistory = false;
                     // Today's energy is updated by the Firebase listener, no need to set here
                 } else {
                     energyLabel.innerText = "Custom Range";
+                    isViewingHistory = true;
                     // Fetch real energy history from Firebase
                     const startEpochDay = Math.floor(new Date(start).getTime() / 1000 / 86400);
                     const endEpochDay = Math.floor(new Date(end).getTime() / 1000 / 86400);
@@ -605,10 +627,28 @@ function showToast(message) {
 }
 
 
+let latestSettings = {
+    voltageOffset: 0.0,
+    powerMultiplier: 1.0,
+    pirDurationMins: 5,
+    batteryHealth: 85
+};
+
 // =========================================
 // SYSTEM SETTINGS LOGIC
 // =========================================
 function openSettingsPopup() {
+    // Populate form with latest values before opening
+    document.getElementById("voltage-offset").value = latestSettings.voltageOffset;
+    document.getElementById("power-multiplier").value = latestSettings.powerMultiplier;
+    
+    document.getElementById("motion-duration").value = latestSettings.pirDurationMins;
+    updateMotionTimeDisplay(latestSettings.pirDurationMins);
+    
+    document.getElementById("battery-health").value = latestSettings.batteryHealth;
+    const healthDisp = document.getElementById("health-display");
+    if(healthDisp) healthDisp.innerText = latestSettings.batteryHealth + "%";
+
     document.getElementById("settings-modal").style.display = "flex";
 }
 
@@ -631,11 +671,13 @@ function saveSettings() {
     }
 
     const offset = document.getElementById("voltage-offset").value;
+    const powerMult = document.getElementById("power-multiplier").value;
     const duration = document.getElementById("motion-duration").value;
     const health = document.getElementById("battery-health").value;
     
     database.ref("/Settings").update({
         voltageOffset: parseFloat(offset),
+        powerMultiplier: parseFloat(powerMult),
         pirDurationMins: parseInt(duration),
         batteryHealth: parseInt(health)
     }).catch(e => showToast("Error: " + e.message));
@@ -729,7 +771,8 @@ function toggleOutsideLight(e) {
 // =========================================
 // SYSTEM ONLINE/OFFLINE STATUS LOGIC
 // =========================================
-let lastHeartbeat = 0; // Start at 0 so it immediately shows offline until real data arrives
+let lastHeartbeat = 0;
+let isViewingHistory = false; // Prevents 5-sec realtime update from overwriting the energy chart/history selection // Start at 0 so it immediately shows offline until real data arrives
 
 // In final integration, call this inside the Firebase on() callback
 function updateHeartbeat(epochFromFirebase) {
