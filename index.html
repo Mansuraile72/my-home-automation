@@ -39,8 +39,22 @@
                 </div>
             </div>
 
-            <!-- Light Card 2 -->            <div class="device-card light-type" id="light2-card" onclick="toggleOutsideLight()">
-                <div class="mode-badge" id="light2-mode">Auto</div>
+            <!-- Light Card 2 (Outside Light with Bike Indicator Switch) -->
+            <div class="device-card light-type" id="light2-card">
+                <div class="bike-switch-container" id="light2-switch" onclick="event.stopPropagation()">
+                    <div class="bike-switch-track pos-center" id="bike-switch-track">
+                        <div class="bike-switch-thumb" id="bike-switch-thumb"></div>
+                        <button type="button" class="bike-switch-btn btn-left" id="btn-mode-force-off" title="Force OFF (1 Hour Mute)" onclick="handleSwitchModeClick('force_off', event)">
+                            ◀ OFF
+                        </button>
+                        <button type="button" class="bike-switch-btn btn-center" id="btn-mode-auto" title="Click to return to AUTO" onclick="handleSwitchModeClick('auto', event)">
+                            AUTO
+                        </button>
+                        <button type="button" class="bike-switch-btn btn-right" id="btn-mode-force-on" title="Force ON (1 Hour)" onclick="handleSwitchModeClick('force_on', event)">
+                            ON ▶
+                        </button>
+                    </div>
+                </div>
                 <div class="graphic-container">
                     <svg class="icon light-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/>
@@ -49,6 +63,7 @@
                     </svg>
                 </div>
                 <div class="timer-corner" id="light2-timer" style="display: none;"></div>
+                <div class="mode-badge" id="light2-mode" style="display: none;">Auto</div>
             </div>
                         <!-- Battery Card -->
             <div class="device-card sensor-type" id="battery-card">
@@ -104,7 +119,7 @@
                         <line x1="35" y1="70" x2="40" y2="70" stroke="#2c3e50" stroke-width="1.5"></line>
                     </svg>
                     
-                    <div class="temp-value" id="temp-value">24<span class="temp-unit">&deg;C</span></div>
+                    <div class="temp-value" id="temp-value">--<span class="temp-unit">&deg;C</span></div>
                     <div class="hum-value" id="hum-value">--%</div>
                 </div>
             </div>
@@ -170,13 +185,14 @@
 
             
             <!-- System Status Card -->
-            <div class="device-card status-type" id="status-card">
+            <div class="device-card status-type" id="status-card" onclick="openDiagnosticsPopup()" title="Click to view Reset History & System Diagnostics">
                 <div class="status-container">
                     <div class="pulse-wrapper">
                         <div class="pulse-ring"></div>
                         <div class="pulse-dot"></div>
                     </div>
-                    <div class="status-text">Online</div>
+                    <div class="status-text">Connecting...</div>
+                    <div class="status-subtext" style="font-size:0.75rem; color:#7f8c8d; margin-top:6px; font-weight:500;">Diagnostics & Logs</div>
                 </div>
             </div>
         </div>
@@ -244,6 +260,27 @@
         </div>
     </div>
     
+    <!-- SETTINGS AUTHENTICATION MODAL -->
+    <div id="settings-auth-modal" class="modal">
+        <div class="modal-content" style="max-width: 380px; text-align: center;">
+            <span class="close-btn" onclick="closeSettingsAuthPopup()">&times;</span>
+            <div style="font-size: 2.5rem; margin-bottom: 8px;">🔒</div>
+            <h2 class="modal-title" style="margin-bottom: 8px;">Admin Verification</h2>
+            <p style="color: #7f8c8d; font-size: 0.88rem; margin-bottom: 20px;">
+                Enter admin password to access calibration &amp; system settings.
+            </p>
+            <div class="form-group" style="text-align: left;">
+                <label for="settings-password-input">Admin Password</label>
+                <input type="password" id="settings-password-input" class="modal-select" placeholder="Enter password" style="width: 100%; box-sizing: border-box; padding: 10px; font-size: 1rem; border-radius: 8px; border: 1px solid #ccc;" onkeydown="if(event.key==='Enter') verifySettingsPassword()">
+                <div id="settings-auth-error" style="color: #e74c3c; font-size: 0.82rem; margin-top: 6px; display: none; font-weight: bold;">गलत पासवर्ड! (Incorrect password)</div>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn" onclick="closeSettingsAuthPopup()" style="flex: 1; background-color: #95a5a6; color: white;">Cancel</button>
+                <button class="btn btn-save" onclick="verifySettingsPassword()" style="flex: 1; background-color: #3498db; margin-top: 0;">Unlock</button>
+            </div>
+        </div>
+    </div>
+    
     <!-- SETTINGS MODAL -->
     <div id="settings-modal" class="modal">
         <div class="modal-content">
@@ -286,6 +323,46 @@
             </div>
 
             <button class="btn btn-save" onclick="saveSettings()" style="background-color:#3498db; margin-top:20px;">Save Settings</button>
+        </div>
+    </div>
+
+    <!-- DIAGNOSTICS & RESET HISTORY MODAL -->
+    <div id="diagnostics-modal" class="modal">
+        <div class="modal-content" style="max-width: 520px;">
+            <span class="close-btn" onclick="closeDiagnosticsPopup()">&times;</span>
+            <h2 class="modal-title">System Diagnostics</h2>
+            
+            <div class="diag-overview">
+                <div class="diag-item">
+                    <div class="diag-label">Board Status</div>
+                    <div class="diag-value" id="diag-status-val" style="color:#2ecc71;">Online</div>
+                </div>
+                <div class="diag-item">
+                    <div class="diag-label">Free RAM</div>
+                    <div class="diag-value" id="diag-ram-val">-- KB</div>
+                </div>
+                <div class="diag-item">
+                    <div class="diag-label">Total Logs</div>
+                    <div class="diag-value" id="diag-count-val">0</div>
+                </div>
+            </div>
+
+            <div class="diag-last-box">
+                <div class="diag-last-title">⚡ Latest Reboot Reason:</div>
+                <div class="diag-last-desc" id="diag-latest-reason">No reboot records yet.</div>
+                <div class="diag-last-time" id="diag-latest-time">--</div>
+            </div>
+
+            <div class="diag-history-header">
+                <h3 style="margin:0; font-size:1.05rem; color:#2c3e50;">Reset History (Last 20)</h3>
+                <button class="btn-clear-history" onclick="clearResetHistory()">Clear Logs</button>
+            </div>
+
+            <div class="diag-history-container">
+                <ul id="reset-history-list" class="reset-history-list">
+                    <li class="empty-msg">No reset logs available.</li>
+                </ul>
+            </div>
         </div>
     </div>
 

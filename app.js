@@ -15,130 +15,223 @@ let outsideLightMode = "auto";
 let outsideLightForceEnd = 0;
 let fanEmergencyEnd = 0;
 
-// Listen to Global State from Firebase
-database.ref("/").on("value", (snapshot) => {
+// =========================================
+// ON-DEMAND PRESENCE SENSING (Tab Focus / Background)
+// =========================================
+const webActiveRef = database.ref("/device/command/webActive");
+
+function updateWebPresence() {
+    const isVisible = (document.visibilityState === 'visible');
+    if (isVisible) {
+        webActiveRef.set(true);
+        webActiveRef.onDisconnect().set(false);
+    } else {
+        webActiveRef.set(false);
+    }
+}
+
+document.addEventListener("visibilitychange", updateWebPresence);
+window.addEventListener("focus", updateWebPresence);
+window.addEventListener("blur", updateWebPresence);
+window.addEventListener("pagehide", () => webActiveRef.set(false));
+window.addEventListener("beforeunload", () => webActiveRef.set(false));
+updateWebPresence();
+
+// =========================================
+// LOCAL STORAGE CACHING & FAST RESTORE (0-Delay)
+// =========================================
+function loadCachedState() {
+    try {
+        const cachedSensors = localStorage.getItem("ha_sensors");
+        if (cachedSensors) {
+            applySensorData(JSON.parse(cachedSensors));
+        }
+        const cachedDevice = localStorage.getItem("ha_device_state");
+        if (cachedDevice) {
+            applyDeviceState(JSON.parse(cachedDevice));
+        }
+        const cachedHb = localStorage.getItem("ha_heartbeat");
+        if (cachedHb) {
+            lastHeartbeat = parseInt(cachedHb, 10);
+            updateStatusUI();
+        }
+    } catch (e) {
+        console.warn("Could not load from localStorage", e);
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadCachedState);
+} else {
+    loadCachedState();
+}
+
+// 1. SENSOR DATA LISTENER (Lightweight & Modular)
+database.ref("/Sensor_Data").on("value", (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
+    try {
+        localStorage.setItem("ha_sensors", JSON.stringify(data));
+    } catch (e) {}
+    applySensorData(data);
+});
 
-    let isOffline = true;
-    if (data.Sensor_Data && data.Sensor_Data.Last_Heartbeat) {
-        updateHeartbeat(data.Sensor_Data.Last_Heartbeat);
-        const currentEpoch = Math.floor(Date.now() / 1000);
-        isOffline = (currentEpoch - data.Sensor_Data.Last_Heartbeat) > 60;
+function applySensorData(sensors) {
+    if (!sensors) return;
+
+    if (sensors.Last_Heartbeat !== undefined) {
+        updateHeartbeat(sensors.Last_Heartbeat);
     }
 
-    // SYSTEM SETTINGS
-    if (data.Settings) {
-        if (data.Settings.voltageOffset !== undefined) latestSettings.voltageOffset = data.Settings.voltageOffset;
-        if (data.Settings.powerMultiplier !== undefined) latestSettings.powerMultiplier = data.Settings.powerMultiplier;
-        if (data.Settings.pirDurationMins !== undefined) latestSettings.pirDurationMins = data.Settings.pirDurationMins;
-        if (data.Settings.batteryHealth !== undefined) latestSettings.batteryHealth = data.Settings.batteryHealth;
+    const currentEpoch = Math.floor(Date.now() / 1000);
+    const isOffline = lastHeartbeat > 0 && (currentEpoch - lastHeartbeat) > 75;
+    if (isOffline) return; // Wait for online update
+
+    if (sensors.Battery_V !== undefined) {
+        const el = document.getElementById("battery-voltage");
+        if (el) el.innerText = Number(sensors.Battery_V).toFixed(1) + "V";
     }
-
-    // SENSOR DATA - Only paint if online!
-    if (data.Sensor_Data && !isOffline) {
-
-        if (data.Sensor_Data.Battery_V !== undefined) {
-            document.getElementById("battery-voltage").innerText = data.Sensor_Data.Battery_V.toFixed(1) + "V";
-        }
-        if (data.Sensor_Data.Battery_Pct !== undefined) {
-            updateBattery(data.Sensor_Data.Battery_Pct, data.Sensor_Data.Battery_V);
-        }
-        if (data.Sensor_Data.TimeLeft_Mins !== undefined) {
-            if (data.Sensor_Data.TimeLeft_Mins === -1) {
-                document.getElementById("battery-time").innerText = "Grid ON / Stable";
+    if (sensors.Battery_Pct !== undefined) {
+        updateBattery(sensors.Battery_Pct, sensors.Battery_V);
+    }
+    if (sensors.TimeLeft_Mins !== undefined) {
+        const timeEl = document.getElementById("battery-time");
+        if (timeEl) {
+            if (sensors.TimeLeft_Mins === -1) {
+                timeEl.innerText = "Grid ON / Stable";
             } else {
-                const hrs = Math.floor(data.Sensor_Data.TimeLeft_Mins / 60);
-                const mins = data.Sensor_Data.TimeLeft_Mins % 60;
-                document.getElementById("battery-time").innerText = `${hrs}h ${mins}m left`;
+                const hrs = Math.floor(sensors.TimeLeft_Mins / 60);
+                const mins = sensors.TimeLeft_Mins % 60;
+                timeEl.innerText = `${hrs}h ${mins}m left`;
             }
         }
-        if (data.Sensor_Data.Power_W !== undefined) {
-            document.getElementById("current-power").innerHTML = Math.round(data.Sensor_Data.Power_W) + `<span class="unit">W</span>`;
-        }
-        if (data.Sensor_Data.Energy_Today_Wh !== undefined && !isViewingHistory) {
-            document.getElementById("energy-total").innerHTML = (data.Sensor_Data.Energy_Today_Wh / 1000).toFixed(2) + `<span class="unit">kWh</span>`;
-        }
-        if (data.Sensor_Data.Temperature !== undefined) {
-            const tempEl = document.getElementById("temp-value");
-            if (tempEl) tempEl.innerHTML = data.Sensor_Data.Temperature.toFixed(1) + `&deg;C`;
-            updateTemperature(data.Sensor_Data.Temperature);
-        }
-        if (data.Sensor_Data.Humidity !== undefined) {
-            const humEl = document.getElementById("hum-value");
-            if (humEl) humEl.innerText = data.Sensor_Data.Humidity.toFixed(0) + `%`;
-        }
-        if (data.Sensor_Data.Last_Heartbeat !== undefined) {
-            updateHeartbeat(data.Sensor_Data.Last_Heartbeat);
+    }
+    if (sensors.Power_W !== undefined) {
+        const pEl = document.getElementById("current-power");
+        if (pEl) pEl.innerHTML = Math.round(sensors.Power_W) + `<span class="unit">W</span>`;
+    }
+    if (sensors.Energy_Today_Wh !== undefined && !isViewingHistory) {
+        const eEl = document.getElementById("energy-total");
+        if (eEl) eEl.innerHTML = (sensors.Energy_Today_Wh / 1000).toFixed(2) + `<span class="unit">kWh</span>`;
+    }
+    if (sensors.Temperature !== undefined) {
+        const tempEl = document.getElementById("temp-value");
+        if (tempEl) tempEl.innerHTML = Number(sensors.Temperature).toFixed(1) + `&deg;C`;
+        updateTemperature(sensors.Temperature);
+    }
+    if (sensors.Humidity !== undefined) {
+        const humEl = document.getElementById("hum-value");
+        if (humEl) humEl.innerText = Math.round(sensors.Humidity) + `%`;
+    }
+}
+
+// 2. DEVICE STATE LISTENER (Instant Event Sync)
+database.ref("/device/state").on("value", (snapshot) => {
+    const data = snapshot.val();
+    if (!data) return;
+    try {
+        localStorage.setItem("ha_device_state", JSON.stringify(data));
+    } catch (e) {}
+    applyDeviceState(data);
+});
+
+// 3. MASTER KILL SWITCH LISTENER (External System: /System_Status/Master_Block)
+database.ref("/System_Status/Master_Block").on("value", (snapshot) => {
+    if (snapshot.exists()) {
+        const val = snapshot.val();
+        const locked = (val === true || val === 1 || val === "true" || val === "1");
+        isSystemLocked = locked;
+        const overlay = document.getElementById("lockdown-overlay");
+        if (overlay) overlay.style.display = isSystemLocked ? "flex" : "none";
+        const grid = document.querySelector(".device-grid");
+        if (grid) {
+            if (isSystemLocked) grid.classList.add("locked-system");
+            else grid.classList.remove("locked-system");
         }
     }
-    
-    
-    
+});
+
+function applyDeviceState(state) {
+    if (!state) return;
+
     // SYSTEM LOCKDOWN
-    if (data.device && data.device.state && data.device.state.System_Lock !== undefined) {
-        isSystemLocked = data.device.state.System_Lock;
+    if (state.System_Lock !== undefined) {
+        isSystemLocked = state.System_Lock;
         const overlay = document.getElementById("lockdown-overlay");
         if (overlay) {
             overlay.style.display = isSystemLocked ? "flex" : "none";
         }
         const grid = document.querySelector(".device-grid");
         if (grid) {
-            if (isSystemLocked) {
-                grid.classList.add("locked-system");
-            } else {
-                grid.classList.remove("locked-system");
-            }
+            if (isSystemLocked) grid.classList.add("locked-system");
+            else grid.classList.remove("locked-system");
         }
     }
 
-    // DEVICE STATE - Force OFF if offline
-    if (data.device && data.device.state) {
-        if (isOffline) {
-            updateDeviceCard("fan", false);
-            updateDeviceCard("light1", false);
-            updateDeviceCard("light2", false);
-        } else {
-            // Only apply Firebase state if we haven't clicked a button in the last 2 seconds
-            // This prevents the instant revert caused by Firebase local caching
-            const timeSinceClick = Date.now() - window.lastClickTime;
-            if (timeSinceClick > 2000) {
-                updateDeviceCard("fan", data.device.state.fanState);
-                updateDeviceCard("light1", data.device.state.insideLightState);
-                updateDeviceCard("light2", data.device.state.outsideLightState);
-            }
-            
-            if (data.device.state.outsideLightMode !== undefined) {
-                outsideLightMode = data.device.state.outsideLightMode;
-                const modeBadge = document.getElementById("light2-mode");
-                if (modeBadge) {
-                    if (outsideLightMode === "force") {
-                        modeBadge.innerText = "Force";
-                        modeBadge.className = "mode-badge force-mode";
-                    } else {
-                        if (data.device.state.outsideLightState === true) {
-                            modeBadge.innerText = "Motion Detected";
-                            modeBadge.className = "mode-badge auto-mode";
-                            modeBadge.style.backgroundColor = "#ff9800"; // Orange alert color
-                        } else {
-                            modeBadge.innerText = "Auto";
-                            modeBadge.className = "mode-badge auto-mode";
-                            modeBadge.style.backgroundColor = ""; // Reset
-                        }
-                    }
+    // Only apply Firebase state if we haven't clicked a button in the last 2 seconds
+    const timeSinceClick = Date.now() - window.lastClickTime;
+    if (timeSinceClick > 2000) {
+        if (state.fanState !== undefined) updateDeviceCard("fan", state.fanState);
+        if (state.insideLightState !== undefined) updateDeviceCard("light1", state.insideLightState);
+        if (state.outsideLightState !== undefined) updateDeviceCard("light2", state.outsideLightState);
+    }
+
+    if (state.outsideLightMode !== undefined) {
+        outsideLightMode = state.outsideLightMode;
+        const switchTrack = document.getElementById("bike-switch-track");
+        const modeBadge = document.getElementById("light2-mode");
+
+        if (switchTrack) {
+            switchTrack.classList.remove("pos-left", "pos-center", "pos-right", "motion-active");
+            if (outsideLightMode === "force_off") {
+                switchTrack.classList.add("pos-left");
+            } else if (outsideLightMode === "force_on" || outsideLightMode === "force") {
+                switchTrack.classList.add("pos-right");
+            } else {
+                switchTrack.classList.add("pos-center");
+                if (state.outsideLightState === true) {
+                    switchTrack.classList.add("motion-active");
                 }
             }
-            if (data.device.state.outsideLightForceEnd !== undefined) {
-                outsideLightForceEnd = data.device.state.outsideLightForceEnd;
-            }
-            if (data.device.state.fanEmergencyEnd !== undefined) {
-                fanEmergencyEnd = data.device.state.fanEmergencyEnd;
+        }
+
+        if (modeBadge) {
+            if (outsideLightMode === "force_off") {
+                modeBadge.innerText = "FORCE OFF";
+                modeBadge.className = "mode-badge force-mode";
+            } else if (outsideLightMode === "force_on" || outsideLightMode === "force") {
+                modeBadge.innerText = "FORCE ON";
+                modeBadge.className = "mode-badge force-mode";
+            } else {
+                if (state.outsideLightState === true) {
+                    modeBadge.innerText = "Motion Detected";
+                    modeBadge.className = "mode-badge auto-mode";
+                    modeBadge.style.backgroundColor = "#ff9800";
+                } else {
+                    modeBadge.innerText = "Auto";
+                    modeBadge.className = "mode-badge auto-mode";
+                    modeBadge.style.backgroundColor = "";
+                }
             }
         }
     }
 
-    // (Hardware Confirmation UI blocking removed per user request)
+    if (state.outsideLightForceEnd !== undefined) {
+        outsideLightForceEnd = state.outsideLightForceEnd;
+    }
+    if (state.fanEmergencyEnd !== undefined) {
+        fanEmergencyEnd = state.fanEmergencyEnd;
+    }
+}
 
+// 3. SETTINGS LISTENER
+database.ref("/Settings").on("value", (snapshot) => {
+    const data = snapshot.val();
+    if (!data) return;
+    if (data.voltageOffset !== undefined) latestSettings.voltageOffset = data.voltageOffset;
+    if (data.powerMultiplier !== undefined) latestSettings.powerMultiplier = data.powerMultiplier;
+    if (data.pirDurationMins !== undefined) latestSettings.pirDurationMins = data.pirDurationMins;
+    if (data.batteryHealth !== undefined) latestSettings.batteryHealth = data.batteryHealth;
 });
 
 // Variables for fan inertia animation
@@ -200,14 +293,20 @@ function updateDeviceCard(device, state) {
     if (!card) return;
     
     if (state) {
-        if (!card.classList.contains("active")) {
-            card.classList.add("active");
-            if (device === "fan") startFan();
+        card.classList.add("active");
+        if (device === "fan") {
+            const video = document.getElementById('fan-video');
+            if (!video || video.paused || fanSpeed < 1.0) {
+                startFan();
+            }
         }
     } else {
-        if (card.classList.contains("active")) {
-            card.classList.remove("active");
-            if (device === "fan") stopFan();
+        card.classList.remove("active");
+        if (device === "fan") {
+            const video = document.getElementById('fan-video');
+            if (video && (!video.paused || fanSpeed > 0)) {
+                stopFan();
+            }
         }
     }
 }
@@ -217,13 +316,30 @@ function startFan() {
     if (!video) return;
     
     clearInterval(fanInterval);
+    video.muted = true;
     
-    // Ensure video is playing
-    video.play().catch(e => console.log('Autoplay prevented:', e));
+    const playPromise = video.play();
+    if (playPromise !== undefined) {
+        playPromise.catch((e) => {
+            console.log('Autoplay waiting for user gesture:', e);
+            const retryOnInteraction = () => {
+                const card = document.getElementById('fan-card');
+                if (card && card.classList.contains('active')) {
+                    video.play().catch(() => {});
+                }
+                document.removeEventListener('click', retryOnInteraction);
+                document.removeEventListener('touchstart', retryOnInteraction);
+            };
+            document.addEventListener('click', retryOnInteraction, { once: true });
+            document.addEventListener('touchstart', retryOnInteraction, { once: true });
+        });
+    }
+    
+    if (fanSpeed < 1.0) fanSpeed = 1.0;
     
     // Gradually increase speed
     fanInterval = setInterval(() => {
-        fanSpeed += 0.1;
+        fanSpeed += 0.2;
         if (fanSpeed >= MAX_SPEED) {
             fanSpeed = MAX_SPEED;
             clearInterval(fanInterval);
@@ -240,7 +356,7 @@ function stopFan() {
     
     // Gradually decrease speed
     fanInterval = setInterval(() => {
-        fanSpeed -= 0.05; 
+        fanSpeed -= 0.1; 
         if (fanSpeed <= 0.1) {
             fanSpeed = 0;
             video.pause();
@@ -253,9 +369,16 @@ function stopFan() {
 
 window.onload = () => {
     const video = document.getElementById('fan-video');
-    if (video) {
-        video.pause();
-        video.playbackRate = 0.1; 
+    const fanCard = document.getElementById('fan-card');
+    
+    // Only pause video if fan is NOT active!
+    if (fanCard && fanCard.classList.contains('active')) {
+        startFan();
+    } else {
+        if (video) {
+            video.pause();
+            video.playbackRate = 0.1; 
+        }
     }
     
     // Client-side countdown timer for Fan Emergency and Light2 Force Mode
@@ -276,10 +399,11 @@ window.onload = () => {
             }
         }
         
-        // Light2 Timer
+        // Light2 Timer (for Force ON and Force OFF)
         const light2TimerEl = document.getElementById("light2-timer");
         if (light2TimerEl) {
-            if (outsideLightMode === "force" && outsideLightForceEnd > currentEpoch) {
+            const isForced = (outsideLightMode === "force" || outsideLightMode === "force_on" || outsideLightMode === "force_off");
+            if (isForced && outsideLightForceEnd > currentEpoch) {
                 const diff = outsideLightForceEnd - currentEpoch;
                 const m = Math.floor(diff / 60);
                 const s = diff % 60;
@@ -598,6 +722,44 @@ let latestSettings = {
 // SYSTEM SETTINGS LOGIC
 // =========================================
 function openSettingsPopup() {
+    const authModal = document.getElementById("settings-auth-modal");
+    const pwdInput = document.getElementById("settings-password-input");
+    const errorMsg = document.getElementById("settings-auth-error");
+    if (pwdInput) pwdInput.value = "";
+    if (errorMsg) errorMsg.style.display = "none";
+    if (authModal) {
+        authModal.style.display = "flex";
+        setTimeout(() => { if (pwdInput) pwdInput.focus(); }, 100);
+    } else {
+        showActualSettingsModal();
+    }
+}
+
+function closeSettingsAuthPopup() {
+    const authModal = document.getElementById("settings-auth-modal");
+    if (authModal) authModal.style.display = "none";
+}
+
+function verifySettingsPassword() {
+    const pwdInput = document.getElementById("settings-password-input");
+    const errorMsg = document.getElementById("settings-auth-error");
+    const entered = pwdInput ? pwdInput.value.trim() : "";
+    if (entered === "admin123") {
+        closeSettingsAuthPopup();
+        showActualSettingsModal();
+    } else {
+        if (errorMsg) {
+            errorMsg.innerText = "गलत पासवर्ड! कृपया दोबारा प्रयास करें।";
+            errorMsg.style.display = "block";
+        }
+        if (pwdInput) {
+            pwdInput.value = "";
+            pwdInput.focus();
+        }
+    }
+}
+
+function showActualSettingsModal() {
     // Populate form with latest values before opening
     document.getElementById("voltage-offset").value = latestSettings.voltageOffset;
     document.getElementById("power-multiplier").value = latestSettings.powerMultiplier;
@@ -698,30 +860,113 @@ function startEmergency() {
 
 
 
-function toggleOutsideLight(e) {
+function handleSwitchModeClick(targetMode, e) {
+    if (e) e.stopPropagation();
     window.lastClickTime = Date.now();
-    if(e) e.stopPropagation();
+
     if (isSystemLocked) {
         showToast("Error: System is Locked!");
         return;
     }
     const isOffline = (Math.floor(Date.now() / 1000) - lastHeartbeat) > 60;
-    if (isOffline) { showToast("Error: System is Offline!"); return; }
-    
-    const modeBadge = document.getElementById("light2-mode");
+    if (isOffline) {
+        showToast("Error: System is Offline!");
+        return;
+    }
 
-    if (outsideLightMode === "auto") {
-        outsideLightMode = "force";
-        if (modeBadge) modeBadge.innerText = "FORCE ON";
-        database.ref("/device/command").update({"outsideLightForce": true})
-            .catch(e => showToast("Error: " + e.message));
+    // If already in auto and clicked auto, do nothing (no-op)
+    if (targetMode === "auto" && outsideLightMode === "auto") {
+        return;
+    }
+
+    outsideLightMode = targetMode;
+
+    const switchTrack = document.getElementById("bike-switch-track");
+    if (switchTrack) {
+        switchTrack.classList.remove("pos-left", "pos-center", "pos-right", "motion-active");
+        if (targetMode === "force_off") {
+            switchTrack.classList.add("pos-left");
+            updateDeviceCard("light2", false);
+        } else if (targetMode === "force_on") {
+            switchTrack.classList.add("pos-right");
+            updateDeviceCard("light2", true);
+        } else {
+            switchTrack.classList.add("pos-center");
+            updateDeviceCard("light2", false);
+        }
+    }
+
+    let updateObj = {};
+    if (targetMode === "force_on") {
+        updateObj = {
+            "outsideLightForceOn": true,
+            "outsideLightForceOff": false,
+            "outsideLightAuto": false,
+            "outsideLightMode": "force_on",
+            "outsideLightState": true
+        };
+        showToast("Outside Light: FORCE ON (1 Hr)");
+    } else if (targetMode === "force_off") {
+        updateObj = {
+            "outsideLightForceOff": true,
+            "outsideLightForceOn": false,
+            "outsideLightAuto": false,
+            "outsideLightMode": "force_off",
+            "outsideLightState": false
+        };
+        showToast("Outside Light: FORCE OFF (1 Hr Mute)");
     } else {
-        outsideLightMode = "auto";
-        if (modeBadge) modeBadge.innerText = "AUTO";
-        database.ref("/device/command").update({"outsideLightAuto": true})
-            .catch((err) => showToast("Error: " + err.message));
+        updateObj = {
+            "outsideLightAuto": true,
+            "outsideLightForceOn": false,
+            "outsideLightForceOff": false,
+            "outsideLightMode": "auto",
+            "outsideLightState": false
+        };
+        showToast("Outside Light: AUTO Mode Active");
+    }
+
+    database.ref("/device/command").update(updateObj)
+        .catch(err => showToast("Error: " + err.message));
+}
+
+function toggleOutsideLight(e) {
+    if (outsideLightMode === "auto") {
+        handleSwitchModeClick("force_on", e);
+    } else {
+        handleSwitchModeClick("auto", e);
     }
 }
+
+// Swipe Support for Bike Indicator Switch on light2-card
+window.addEventListener('DOMContentLoaded', () => {
+    const lightCard = document.getElementById('light2-card');
+    if (!lightCard) return;
+
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    lightCard.addEventListener('touchstart', (e) => {
+        touchStartX = e.changedTouches[0].clientX;
+        touchStartY = e.changedTouches[0].clientY;
+    }, { passive: true });
+
+    lightCard.addEventListener('touchend', (e) => {
+        const touchEndX = e.changedTouches[0].clientX;
+        const touchEndY = e.changedTouches[0].clientY;
+        const dx = touchEndX - touchStartX;
+        const dy = touchEndY - touchStartY;
+
+        // If horizontal swipe detected (minimum 35px, and dx > dy)
+        if (Math.abs(dx) > 35 && Math.abs(dx) > Math.abs(dy)) {
+            if (dx > 0) {
+                handleSwitchModeClick('force_on');
+            } else {
+                handleSwitchModeClick('force_off');
+            }
+        }
+    }, { passive: true });
+});
 
 
 
@@ -731,48 +976,46 @@ function toggleOutsideLight(e) {
 // SYSTEM ONLINE/OFFLINE STATUS LOGIC
 // =========================================
 let lastHeartbeat = 0;
-let isViewingHistory = false; // Prevents 5-sec realtime update from overwriting the energy chart/history selection // Start at 0 so it immediately shows offline until real data arrives
+let isViewingHistory = false; // Prevents realtime update from overwriting history selection
 
-// In final integration, call this inside the Firebase on() callback
 function updateHeartbeat(epochFromFirebase) {
-    lastHeartbeat = epochFromFirebase;
+    lastHeartbeat = Number(epochFromFirebase);
+    try {
+        localStorage.setItem("ha_heartbeat", lastHeartbeat.toString());
+    } catch (e) {}
+    updateStatusUI();
 }
 
-setInterval(() => {
-    const currentEpoch = Math.floor(Date.now() / 1000);
-    const diff = currentEpoch - lastHeartbeat;
-    
+function updateStatusUI() {
     const statusText = document.querySelector(".status-text");
     const pulseDot = document.querySelector(".pulse-dot");
     const pulseRing = document.querySelector(".pulse-ring");
     const statusCard = document.querySelectorAll(".status-type")[0]; // The online card
-    
-    if (diff > 60) {
+    if (!statusText || !pulseDot || !pulseRing || !statusCard) return;
+
+    if (lastHeartbeat === 0) {
+        statusText.innerText = "Connecting...";
+        statusText.style.color = "#0284c7";
+        pulseDot.style.background = "#0284c7";
+        pulseRing.style.display = "none";
+        statusCard.style.boxShadow = "0 8px 30px rgba(2, 132, 199, 0.15)";
+        statusCard.style.borderColor = "rgba(2, 132, 199, 0.3)";
+        return;
+    }
+
+    const currentEpoch = Math.floor(Date.now() / 1000);
+    const diff = currentEpoch - lastHeartbeat;
+
+    if (diff > 75) {
         statusText.innerText = "Offline";
         statusText.style.color = "#e74c3c";
         pulseDot.style.background = "#e74c3c";
         pulseRing.style.display = "none";
         statusCard.style.boxShadow = "0 8px 30px rgba(231, 76, 60, 0.15)";
-        
-        statusCard.style.boxShadow = "0 8px 30px rgba(231, 76, 60, 0.15)";
         statusCard.style.borderColor = "rgba(231, 76, 60, 0.3)";
-        
-        // Wipe stale data
-        document.getElementById("battery-text").innerText = "--%";
-        document.getElementById("battery-fill").setAttribute("width", 0);
-        document.getElementById("battery-voltage").innerText = "-- V";
-        document.getElementById("battery-time").innerText = "Offline";
-        document.getElementById("current-power").innerHTML = `--<span class="unit">W</span>`;
-        document.getElementById("energy-total").innerHTML = `--<span class="unit">kWh</span>`;
-        document.getElementById("temp-value").innerHTML = `--<span class="temp-unit">&deg;C</span>`;
-        const tempFill = document.getElementById("temp-fill");
-        if (tempFill) {
-            tempFill.setAttribute("height", 0);
-            tempFill.setAttribute("y", 90);
-        }
-        const humOffEl = document.getElementById("hum-value");
-        if (humOffEl) humOffEl.innerText = "--%";
 
+        const timeEl = document.getElementById("battery-time");
+        if (timeEl) timeEl.innerText = "Offline";
     } else {
         statusText.innerText = "Online";
         statusText.style.color = "#2ecc71";
@@ -781,4 +1024,147 @@ setInterval(() => {
         statusCard.style.boxShadow = "0 8px 30px rgba(46, 204, 113, 0.15)";
         statusCard.style.borderColor = "rgba(46, 204, 113, 0.3)";
     }
-}, 10000);
+}
+
+setInterval(updateStatusUI, 5000);
+
+
+// =========================================
+// SYSTEM DIAGNOSTICS & RESET HISTORY
+// =========================================
+function openDiagnosticsPopup() {
+    const isOffline = (Math.floor(Date.now() / 1000) - lastHeartbeat) > 60;
+    const statusVal = document.getElementById("diag-status-val");
+    if (statusVal) {
+        statusVal.innerText = isOffline ? "Offline" : "Online";
+        statusVal.style.color = isOffline ? "#e74c3c" : "#2ecc71";
+    }
+    document.getElementById("diagnostics-modal").style.display = "flex";
+}
+
+function closeDiagnosticsPopup() {
+    document.getElementById("diagnostics-modal").style.display = "none";
+}
+
+// Close modal if user clicks outside modal content
+window.addEventListener('click', (e) => {
+    const diagModal = document.getElementById("diagnostics-modal");
+    if (e.target === diagModal) {
+        closeDiagnosticsPopup();
+    }
+});
+
+function clearResetHistory() {
+    if (confirm("Are you sure you want to clear the reset history log?")) {
+        database.ref("/Diagnostics/Reset_History").remove()
+            .then(() => {
+                showToast("Reset history cleared!");
+            })
+            .catch(err => showToast("Error: " + err.message));
+    }
+}
+
+// Helper to escape HTML and prevent injection
+function escapeHtmlText(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Realtime Listener for Diagnostics & Reset History
+database.ref("/Diagnostics").on("value", (snapshot) => {
+    const diag = snapshot.val() || {};
+    
+    // Latest Reset Reason & RAM
+    if (diag.Last_Reset) {
+        const last = diag.Last_Reset;
+        const reasonEl = document.getElementById("diag-latest-reason");
+        const timeEl = document.getElementById("diag-latest-time");
+        const ramEl = document.getElementById("diag-ram-val");
+
+        if (reasonEl) reasonEl.innerText = last.reason || "Unknown";
+        if (ramEl && last.freeHeap) ramEl.innerText = Math.round(last.freeHeap / 1024) + " KB";
+
+        if (timeEl && last.timestamp) {
+            const d = new Date(last.timestamp * 1000);
+            timeEl.innerText = d.toLocaleString('en-IN', {
+                month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit',
+                hour12: true
+            });
+        }
+    }
+
+    // Reset History List
+    const historyList = document.getElementById("reset-history-list");
+    const countVal = document.getElementById("diag-count-val");
+    if (!historyList) return;
+
+    if (!diag.Reset_History) {
+        historyList.innerHTML = '<li class="empty-msg">No reset logs available.</li>';
+        if (countVal) countVal.innerText = "0";
+        return;
+    }
+
+    const items = [];
+    for (let k in diag.Reset_History) {
+        items.push({ id: k, ...diag.Reset_History[k] });
+    }
+
+    // Sort newest first
+    items.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+    if (countVal) countVal.innerText = items.length;
+
+    // Limit to last 20
+    const displayItems = items.slice(0, 20);
+
+    let html = "";
+    displayItems.forEach((entry) => {
+        const reason = entry.reason || "Unknown";
+        let typeClass = "type-default";
+        let badgeClass = "badge-default";
+        let badgeLabel = "REBOOT";
+
+        const lower = reason.toLowerCase();
+        if (lower.includes("brownout")) {
+            typeClass = "type-brownout";
+            badgeClass = "badge-brownout";
+            badgeLabel = "BROWNOUT";
+        } else if (lower.includes("watchdog") || lower.includes("wdt")) {
+            typeClass = "type-wdt";
+            badgeClass = "badge-wdt";
+            badgeLabel = "WATCHDOG";
+        } else if (lower.includes("panic") || lower.includes("crash")) {
+            typeClass = "type-panic";
+            badgeClass = "badge-panic";
+            badgeLabel = "CRASH";
+        } else if (lower.includes("power-on")) {
+            typeClass = "type-poweron";
+            badgeClass = "badge-poweron";
+            badgeLabel = "POWER ON";
+        }
+
+        let timeStr = "--";
+        if (entry.timestamp) {
+            const d = new Date(entry.timestamp * 1000);
+            timeStr = d.toLocaleString('en-IN', {
+                month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit',
+                hour12: true
+            });
+        }
+
+        html += `
+            <li class="reset-history-item ${typeClass}">
+                <div class="reset-history-info">
+                    <span class="reset-reason-text">${escapeHtmlText(reason)}</span>
+                    <span class="reset-time-text">🕒 ${timeStr}</span>
+                </div>
+                <span class="reset-badge ${badgeClass}">${badgeLabel}</span>
+            </li>
+        `;
+    });
+
+    historyList.innerHTML = html;
+});
