@@ -168,57 +168,58 @@ function applyDeviceState(state) {
         }
     }
 
-    // Only apply Firebase state if we haven't clicked a button in the last 2 seconds
+    // Only apply Firebase state if we haven't clicked a button in the last 2.5 seconds
     const timeSinceClick = Date.now() - window.lastClickTime;
-    if (timeSinceClick > 2000) {
+    if (timeSinceClick > 2500) {
         if (state.fanState !== undefined) updateDeviceCard("fan", state.fanState);
         if (state.insideLightState !== undefined) updateDeviceCard("light1", state.insideLightState);
         if (state.outsideLightState !== undefined) updateDeviceCard("light2", state.outsideLightState);
-    }
 
-    if (state.outsideLightMode !== undefined) {
-        outsideLightMode = state.outsideLightMode;
-        const switchTrack = document.getElementById("bike-switch-track");
-        const modeBadge = document.getElementById("light2-mode");
+        if (state.outsideLightMode !== undefined) {
+            outsideLightMode = state.outsideLightMode;
+            const switchTrack = document.getElementById("bike-switch-track");
+            const modeBadge = document.getElementById("light2-mode");
 
-        if (switchTrack) {
-            switchTrack.classList.remove("pos-left", "pos-center", "pos-right", "motion-active");
-            if (outsideLightMode === "force_off") {
-                switchTrack.classList.add("pos-left");
-            } else if (outsideLightMode === "force_on" || outsideLightMode === "force") {
-                switchTrack.classList.add("pos-right");
-            } else {
-                switchTrack.classList.add("pos-center");
-                if (state.outsideLightState === true) {
-                    switchTrack.classList.add("motion-active");
-                }
-            }
-        }
-
-        if (modeBadge) {
-            if (outsideLightMode === "force_off") {
-                modeBadge.innerText = "FORCE OFF";
-                modeBadge.className = "mode-badge force-mode";
-            } else if (outsideLightMode === "force_on" || outsideLightMode === "force") {
-                modeBadge.innerText = "FORCE ON";
-                modeBadge.className = "mode-badge force-mode";
-            } else {
-                if (state.outsideLightState === true) {
-                    modeBadge.innerText = "Motion Detected";
-                    modeBadge.className = "mode-badge auto-mode";
-                    modeBadge.style.backgroundColor = "#ff9800";
+            if (switchTrack) {
+                switchTrack.classList.remove("pos-left", "pos-center", "pos-right", "motion-active");
+                if (outsideLightMode === "force_off") {
+                    switchTrack.classList.add("pos-left");
+                } else if (outsideLightMode === "force_on" || outsideLightMode === "force") {
+                    switchTrack.classList.add("pos-right");
                 } else {
-                    modeBadge.innerText = "Auto";
-                    modeBadge.className = "mode-badge auto-mode";
-                    modeBadge.style.backgroundColor = "";
+                    switchTrack.classList.add("pos-center");
+                    if (state.outsideLightState === true) {
+                        switchTrack.classList.add("motion-active");
+                    }
+                }
+            }
+
+            if (modeBadge) {
+                if (outsideLightMode === "force_off") {
+                    modeBadge.innerText = "FORCE OFF";
+                    modeBadge.className = "mode-badge force-mode";
+                } else if (outsideLightMode === "force_on" || outsideLightMode === "force") {
+                    modeBadge.innerText = "FORCE ON";
+                    modeBadge.className = "mode-badge force-mode";
+                } else {
+                    if (state.outsideLightState === true) {
+                        modeBadge.innerText = "Motion Detected";
+                        modeBadge.className = "mode-badge auto-mode";
+                        modeBadge.style.backgroundColor = "#ff9800";
+                    } else {
+                        modeBadge.innerText = "Auto";
+                        modeBadge.className = "mode-badge auto-mode";
+                        modeBadge.style.backgroundColor = "";
+                    }
                 }
             }
         }
+
+        if (state.outsideLightForceEnd !== undefined) {
+            outsideLightForceEnd = state.outsideLightForceEnd;
+        }
     }
 
-    if (state.outsideLightForceEnd !== undefined) {
-        outsideLightForceEnd = state.outsideLightForceEnd;
-    }
     if (state.fanEmergencyEnd !== undefined) {
         fanEmergencyEnd = state.fanEmergencyEnd;
     }
@@ -880,8 +881,12 @@ function handleSwitchModeClick(targetMode, e) {
     }
 
     outsideLightMode = targetMode;
+    const currentEpoch = Math.floor(Date.now() / 1000);
 
     const switchTrack = document.getElementById("bike-switch-track");
+    const modeBadge = document.getElementById("light2-mode");
+    const timerEl = document.getElementById("light2-timer");
+
     if (switchTrack) {
         switchTrack.classList.remove("pos-left", "pos-center", "pos-right", "motion-active");
         if (targetMode === "force_off") {
@@ -896,8 +901,27 @@ function handleSwitchModeClick(targetMode, e) {
         }
     }
 
+    if (modeBadge) {
+        if (targetMode === "force_off") {
+            modeBadge.innerText = "FORCE OFF";
+            modeBadge.className = "mode-badge force-mode";
+        } else if (targetMode === "force_on") {
+            modeBadge.innerText = "FORCE ON";
+            modeBadge.className = "mode-badge force-mode";
+        } else {
+            modeBadge.innerText = "Auto";
+            modeBadge.className = "mode-badge auto-mode";
+            modeBadge.style.backgroundColor = "";
+        }
+    }
+
     let updateObj = {};
     if (targetMode === "force_on") {
+        outsideLightForceEnd = currentEpoch + 3600;
+        if (timerEl) {
+            timerEl.innerText = "60m 00s";
+            timerEl.style.display = "block";
+        }
         updateObj = {
             "outsideLightForceOn": true,
             "outsideLightForceOff": false,
@@ -907,6 +931,11 @@ function handleSwitchModeClick(targetMode, e) {
         };
         showToast("Outside Light: FORCE ON (1 Hr)");
     } else if (targetMode === "force_off") {
+        outsideLightForceEnd = currentEpoch + 3600;
+        if (timerEl) {
+            timerEl.innerText = "60m 00s";
+            timerEl.style.display = "block";
+        }
         updateObj = {
             "outsideLightForceOff": true,
             "outsideLightForceOn": false,
@@ -916,6 +945,8 @@ function handleSwitchModeClick(targetMode, e) {
         };
         showToast("Outside Light: FORCE OFF (1 Hr Mute)");
     } else {
+        outsideLightForceEnd = 0;
+        if (timerEl) timerEl.style.display = "none";
         updateObj = {
             "outsideLightAuto": true,
             "outsideLightForceOn": false,
