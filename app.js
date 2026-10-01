@@ -258,12 +258,6 @@ function toggleDevice(device) {
         showToast("Error: System is Locked!");
         return;
     }
-
-    const isOffline = (Math.floor(Date.now() / 1000) - lastHeartbeat) > 60;
-    if (isOffline) {
-        showToast("Error: System is Offline!");
-        return;
-    }
  // Prevent spamming
     
     const currentState = card.classList.contains("active");
@@ -585,12 +579,6 @@ function saveSchedule() {
         return;
     }
 
-    const isOffline = (Math.floor(Date.now() / 1000) - lastHeartbeat) > 60;
-    if (isOffline) {
-        showToast("Error: System is Offline!");
-        return;
-    }
-
     const device = document.querySelector(".device-option.selected").dataset.value;
     const isActionOn = document.getElementById("sched-action").checked;
     const delayMins = parseInt(document.getElementById("sched-time").value);
@@ -787,12 +775,6 @@ function saveSettings() {
         return;
     }
 
-    const isOffline = (Math.floor(Date.now() / 1000) - lastHeartbeat) > 60;
-    if (isOffline) {
-        showToast("Error: System is Offline!");
-        return;
-    }
-
     const offset = document.getElementById("voltage-offset").value;
     const powerMult = document.getElementById("power-multiplier").value;
     const duration = document.getElementById("motion-duration").value;
@@ -822,14 +804,6 @@ function triggerFanEmergency(e) {
         return;
     }
 
-    const isOffline = (Math.floor(Date.now() / 1000) - lastHeartbeat) > 60;
-    if (isOffline) {
-        fetch("/api/toggle_emerg", { method: "POST" })
-            .then(() => showToast("Emergency Mode sent!"))
-            .catch(() => showToast("Failed to reach device"));
-        return;
-    }
-
     document.getElementById("emergency-modal").style.display = "flex";
 }
 
@@ -841,12 +815,6 @@ function startEmergency() {
     window.lastClickTime = Date.now();
     if (isSystemLocked) {
         showToast("Error: System is Locked!");
-        return;
-    }
-
-    const isOffline = (Math.floor(Date.now() / 1000) - lastHeartbeat) > 60;
-    if (isOffline) {
-        showToast("Error: System is Offline!");
         return;
     }
 
@@ -869,12 +837,6 @@ function handleSwitchModeClick(targetMode, e) {
         showToast("Error: System is Locked!");
         return;
     }
-    const isOffline = (Math.floor(Date.now() / 1000) - lastHeartbeat) > 60;
-    if (isOffline) {
-        showToast("Error: System is Offline!");
-        return;
-    }
-
     // If already in auto and clicked auto, do nothing (no-op)
     if (targetMode === "auto" && outsideLightMode === "auto") {
         return;
